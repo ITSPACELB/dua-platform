@@ -3,17 +3,32 @@
 // عرض طلبات الدعاء + إرسال طلب جديد
 // ===============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Share2, Send, X } from 'lucide-react';
 import IslamicBanner from '../shared/IslamicBanner';
 import MenuBar from '../shared/MenuBar';
+import CountdownTimer from '../shared/CountdownTimer';
 import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
+import { getAuth } from '@/lib/auth';
 
-export default function HomePage({ user, onNavigate, onEditProfile }) {
+export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) {
   // 🎲 رسالة تشجيعية عشوائية
   const [randomMessage] = useState(
     encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)]
   );
+
+  // ⏰ حدود الطلبات (Time Limits)
+  const [prayerLimit, setPrayerLimit] = useState({
+    canRequest: true,
+    remainingSeconds: 0,
+    nextAllowedAt: null
+  });
+
+  const [deceasedLimit, setDeceasedLimit] = useState({
+    canRequest: true,
+    remainingSeconds: 0,
+    nextAllowedAt: null
+  });
 
   // 📋 طلبات الدعاء (بيانات وهمية)
   const [requests] = useState([
@@ -44,6 +59,37 @@ export default function HomePage({ user, onNavigate, onEditProfile }) {
     }
   ]);
 
+  // 🕊️ نموذج الدعاء للمتوفى
+  const [showDeceasedForm, setShowDeceasedForm] = useState(false);
+  const [deceasedForm, setDeceasedForm] = useState({
+    fullName: '',
+    motherName: '',
+    relation: ''
+  });
+
+  // ⏰ التحقق من حدود الطلبات عند التحميل
+  useEffect(() => {
+    if (user) {
+      fetch('/api/prayer-request/check-limit', {
+        headers: { Authorization: `Bearer ${getAuth().token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          setPrayerLimit({
+            canRequest: data.canRequestPrayer,
+            remainingSeconds: data.remainingSeconds?.prayer || 0,
+            nextAllowedAt: data.nextPrayerAllowedAt
+          });
+          setDeceasedLimit({
+            canRequest: data.canRequestDeceased,
+            remainingSeconds: data.remainingSeconds?.deceased || 0,
+            nextAllowedAt: data.nextDeceasedAllowedAt
+          });
+        })
+        .catch(err => console.error('Error checking limits:', err));
+    }
+  }, [user]);
+
   // 🕐 حساب الوقت
   const getTimeAgo = (timestamp) => {
     const mins = Math.floor((Date.now() - timestamp) / 60000);
@@ -57,13 +103,10 @@ export default function HomePage({ user, onNavigate, onEditProfile }) {
     return `منذ ${days} يوم`;
   };
 
-  // 🕊️ نموذج الدعاء للمتوفى
-  const [showDeceasedForm, setShowDeceasedForm] = useState(false);
-  const [deceasedForm, setDeceasedForm] = useState({
-    fullName: '',
-    motherName: '',
-    relation: ''
-  });
+  const handleRequestPrayer = async () => {
+    // TODO: ربط بـ API
+    alert('تم إرسال طلبك! سيصل إشعار للمؤمنين خلال 30 دقيقة إن شاء الله');
+  };
 
   const handleDeceasedPrayer = () => {
     if (!deceasedForm.fullName || !deceasedForm.motherName) {
@@ -87,6 +130,7 @@ export default function HomePage({ user, onNavigate, onEditProfile }) {
         currentPage="home"
         onNavigate={onNavigate}
         onEditProfile={onEditProfile}
+        onLogout={onLogout}
       />
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
@@ -108,31 +152,67 @@ export default function HomePage({ user, onNavigate, onEditProfile }) {
 
         {/* 🚀 أزرار الطلب */}
         <div className="grid grid-cols-1 gap-4">
-          <button
-            onClick={() => alert('سيتم ربطه بـ API لاحقاً')}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white p-6 rounded-lg transition-colors"
-          >
-            <div className="text-center">
-              <div className="text-3xl mb-2">🤲</div>
-              <h3 className="text-lg font-semibold mb-2">احتاج دعاءكم</h3>
-              <p className="text-sm opacity-90">
-                احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
-              </p>
+          {/* زر طلب الدعاء */}
+          {prayerLimit.canRequest ? (
+            <button
+              onClick={handleRequestPrayer}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white p-6 rounded-lg transition-colors"
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-2">🤲</div>
+                <h3 className="text-lg font-semibold mb-2">احتاج دعاءكم</h3>
+                <p className="text-sm opacity-90">
+                  احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
+                </p>
+              </div>
+            </button>
+          ) : (
+            <div className="bg-emerald-600 opacity-60 text-white p-6 rounded-lg">
+              <div className="text-center">
+                <div className="text-3xl mb-2">🤲</div>
+                <h3 className="text-lg font-semibold mb-2">احتاج دعاءكم</h3>
+                <p className="text-sm opacity-90 mb-3">
+                  احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
+                </p>
+                <CountdownTimer 
+                  targetTimestamp={prayerLimit.nextAllowedAt}
+                  onComplete={() => setPrayerLimit({...prayerLimit, canRequest: true})}
+                  label="يمكنك طلب دعاء جديد بعد"
+                />
+              </div>
             </div>
-          </button>
+          )}
 
-          <button
-            onClick={() => setShowDeceasedForm(true)}
-            className="bg-stone-600 hover:bg-stone-700 text-white p-6 rounded-lg transition-colors"
-          >
-            <div className="text-center">
-              <div className="text-3xl mb-2">🕊️</div>
-              <h3 className="text-lg font-semibold mb-2">ادعوا لمتوفٍ عزيز</h3>
-              <p className="text-sm opacity-90">
-                ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
-              </p>
+          {/* زر الدعاء للمتوفى */}
+          {deceasedLimit.canRequest ? (
+            <button
+              onClick={() => setShowDeceasedForm(true)}
+              className="bg-stone-600 hover:bg-stone-700 text-white p-6 rounded-lg transition-colors"
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-2">🕊️</div>
+                <h3 className="text-lg font-semibold mb-2">ادعوا لمتوفٍ عزيز</h3>
+                <p className="text-sm opacity-90">
+                  ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
+                </p>
+              </div>
+            </button>
+          ) : (
+            <div className="bg-stone-600 opacity-60 text-white p-6 rounded-lg">
+              <div className="text-center">
+                <div className="text-3xl mb-2">🕊️</div>
+                <h3 className="text-lg font-semibold mb-2">ادعوا لمتوفٍ عزيز</h3>
+                <p className="text-sm opacity-90 mb-3">
+                  ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
+                </p>
+                <CountdownTimer 
+                  targetTimestamp={deceasedLimit.nextAllowedAt}
+                  onComplete={() => setDeceasedLimit({...deceasedLimit, canRequest: true})}
+                  label="يمكنك طلب دعاء جديد بعد"
+                />
+              </div>
             </div>
-          </button>
+          )}
         </div>
 
         {/* 🕊️ نموذج المتوفى */}

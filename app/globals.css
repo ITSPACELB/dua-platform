@@ -15,6 +15,7 @@ body {
   font-family: 'Cairo', 'Traditional Arabic', Arial, sans-serif;
   direction: rtl;
   text-align: right;
+  font-size: 16px; /* INCREASED from 14px */
 }
 
 /* تحسين النصوص العربية */
@@ -44,6 +45,7 @@ body {
 /* تحسين الأزرار على الموبايل */
 button {
   -webkit-tap-highlight-color: transparent;
+  font-size: 1.125rem; /* 18px - INCREASED */
 }
 
 /* تحسين الإدخالات على iOS */
@@ -53,6 +55,7 @@ textarea {
   -moz-appearance: none;
   appearance: none;
   border-radius: 8px;
+  font-size: 1rem; /* 16px minimum for iOS */
 }
 
 /* منع التكبير على iOS عند التركيز على input */
@@ -62,6 +65,11 @@ textarea {
   select {
     font-size: 16px !important;
   }
+}
+
+/* Better contrast for elderly users */
+.text-secondary {
+  @apply text-stone-700; /* was text-gray-500 */
 }
 
 /* تحسين الانتقالات */

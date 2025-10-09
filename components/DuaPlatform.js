@@ -4,7 +4,7 @@
 // ===============================================
 
 'use client'
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // 📄 استيراد الصفحات
 import LandingPage from './pages/LandingPage';
@@ -18,6 +18,9 @@ import FAQPage from './pages/FAQPage';
 
 // 📊 استيراد الثوابت
 import { achievements } from './constants/messages';
+
+// 🔐 استيراد دوال المصادقة
+import { getAuth, clearAuth } from '@/lib/auth';
 
 
 // ===============================================
@@ -41,6 +44,21 @@ export default function DuaPlatform() {
     showFullName: true,
     city: ''
   });
+
+
+  // ===============================================
+  // 🔄 التحقق من الجلسة عند التحميل
+  // ===============================================
+  useEffect(() => {
+    const { user, token, isValid } = getAuth();
+    if (isValid) {
+      setUser(user);
+      setCurrentPage('home');
+    } else {
+      clearAuth();
+      setCurrentPage('landing');
+    }
+  }, []);
 
 
   // ===============================================
@@ -103,6 +121,15 @@ export default function DuaPlatform() {
     setUser(userData);
     // TODO: حفظ الـ token
     setCurrentPage('home');
+  };
+
+  /**
+   * معالجة تسجيل الخروج
+   */
+  const handleLogout = () => {
+    clearAuth();
+    setUser(null);
+    setCurrentPage('landing');
   };
 
   /**
@@ -205,6 +232,7 @@ export default function DuaPlatform() {
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
+        onLogout={handleLogout}
       />
     );
   }
@@ -216,6 +244,7 @@ export default function DuaPlatform() {
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
+        onLogout={handleLogout}
       />
     );
   }
@@ -227,6 +256,7 @@ export default function DuaPlatform() {
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
+        onLogout={handleLogout}
       />
     );
   }
@@ -238,6 +268,7 @@ export default function DuaPlatform() {
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
+        onLogout={handleLogout}
       />
     );
   }
@@ -252,6 +283,7 @@ export default function DuaPlatform() {
       onDeceasedPrayer={handleDeceasedPrayer}
       onStartPraying={handleStartPraying}
       onCompletePrayer={handleCompletePrayer}
+      onLogout={handleLogout}
     />
   );
 }

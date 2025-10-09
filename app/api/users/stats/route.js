@@ -21,6 +21,106 @@ function verifyToken(request) {
   }
 }
 
+// حساب معدل التفاعل
+function calculateInteractionRate(prayersGiven, notificationsReceived) {
+  if (notificationsReceived === 0) return 0;
+  return Math.round((prayersGiven / notificationsReceived) * 100);
+}
+
+// تحديد مستوى التوثيق
+function getVerificationLevel(interactionRate) {
+  if (interactionRate >= 98) {
+    return {
+      name: 'GOLD',
+      color: 'amber',
+      icon: '👑',
+      threshold: 98
+    };
+  } else if (interactionRate >= 90) {
+    return {
+      name: 'GREEN',
+      color: 'emerald',
+      icon: '✓✓',
+      threshold: 90
+    };
+  } else if (interactionRate >= 80) {
+    return {
+      name: 'BLUE',
+      color: 'blue',
+      icon: '✓',
+      threshold: 80
+    };
+  } else {
+    return {
+      name: 'NONE',
+      color: 'stone',
+      icon: '',
+      threshold: 0
+    };
+  }
+}
+
+// الميزات المفتوحة حسب المستوى
+function getUnlockedFeatures(interactionRate) {
+  const features = [];
+  
+  if (interactionRate >= 80) {
+    features.push('priority_display'); // ظهور أولوي في القوائم
+    features.push('blue_badge'); // شارة زرقاء
+  }
+  
+  if (interactionRate >= 90) {
+    features.push('green_badge'); // شارة خضراء مزدوجة
+    features.push('top_priority'); // أولوية عليا
+  }
+  
+  if (interactionRate >= 98) {
+    features.push('gold_badge'); // شارة ذهبية
+    features.push('max_priority'); // أعلى أولوية
+    features.push('special_reactions'); // ردود خاصة
+  }
+  
+  return features;
+}
+
+// حساب المستوى القادم
+function calculateNextLevel(rate) {
+  if (rate < 80) {
+    return {
+      level: 'BLUE',
+      levelName: 'التوثيق الأزرق',
+      remaining: 80 - rate,
+      icon: '✓',
+      color: 'blue'
+    };
+  }
+  if (rate < 90) {
+    return {
+      level: 'GREEN',
+      levelName: 'التوثيق الأخضر',
+      remaining: 90 - rate,
+      icon: '✓✓',
+      color: 'emerald'
+    };
+  }
+  if (rate < 98) {
+    return {
+      level: 'GOLD',
+      levelName: 'التوثيق الذهبي',
+      remaining: 98 - rate,
+      icon: '👑',
+      color: 'amber'
+    };
+  }
+  return {
+    level: 'MAX',
+    levelName: 'المستوى الأقصى',
+    remaining: 0,
+    icon: '👑',
+    color: 'amber'
+  };
+}
+
 // GET - جلب إحصائيات المستخدم
 export async function GET(request) {
   try {
@@ -65,7 +165,21 @@ export async function GET(request) {
           lastPrayerDate: null,
           prayersThisMonth: 0,
           prayersReceivedCount: 0,
-          answeredPrayers: 0
+          answeredPrayers: 0,
+          verificationLevel: {
+            name: 'NONE',
+            color: 'stone',
+            icon: '',
+            threshold: 0
+          },
+          unlockedFeatures: [],
+          nextLevel: {
+            level: 'BLUE',
+            levelName: 'التوثيق الأزرق',
+            remaining: 80,
+            icon: '✓',
+            color: 'blue'
+          }
         }
       });
     }
@@ -98,16 +212,34 @@ export async function GET(request) {
       [userId]
     );
 
+    // حساب معدل التفاعل والتوثيق
+    const interactionRate = calculateInteractionRate(
+      parseInt(stats.total_prayers_given),
+      parseInt(stats.total_notifications_received)
+    );
+
+    const verificationLevel = getVerificationLevel(interactionRate);
+    const unlockedFeatures = getUnlockedFeatures(interactionRate);
+    const nextLevel = calculateNextLevel(interactionRate);
+
     return NextResponse.json({
       success: true,
       stats: {
         totalPrayersGiven: parseInt(stats.total_prayers_given),
         totalNotificationsReceived: parseInt(stats.total_notifications_received),
-        interactionRate: parseFloat(stats.interaction_rate),
+        interactionRate,
         lastPrayerDate: stats.last_prayer_date,
         prayersThisMonth: parseInt(monthPrayersResult.rows[0].count),
         prayersReceivedCount: parseInt(receivedPrayersResult.rows[0].count),
-        answeredPrayers: parseInt(answeredResult.rows[0].count)
+        answeredPrayers: parseInt(answeredResult.rows[0].count),
+        verificationLevel: {
+          name: verificationLevel.name,
+          color: verificationLevel.color,
+          icon: verificationLevel.icon,
+          threshold: verificationLevel.threshold
+        },
+        unlockedFeatures,
+        nextLevel
       }
     });
 
@@ -152,17 +284,35 @@ export async function POST(request) {
 
     // جلب الإحصائيات المحدثة
     const updatedStats = await query(
-      `SELECT total_prayers_given, interaction_rate 
+      `SELECT total_prayers_given, total_notifications_received, interaction_rate 
        FROM user_stats 
        WHERE user_id = $1`,
       [userId]
     );
 
+    const stats = updatedStats.rows[0];
+    const interactionRate = calculateInteractionRate(
+      parseInt(stats.total_prayers_given),
+      parseInt(stats.total_notifications_received)
+    );
+
+    const verificationLevel = getVerificationLevel(interactionRate);
+    const unlockedFeatures = getUnlockedFeatures(interactionRate);
+    const nextLevel = calculateNextLevel(interactionRate);
+
     return NextResponse.json({
       success: true,
       stats: {
-        totalPrayersGiven: parseInt(updatedStats.rows[0].total_prayers_given),
-        interactionRate: parseFloat(updatedStats.rows[0].interaction_rate)
+        totalPrayersGiven: parseInt(stats.total_prayers_given),
+        interactionRate,
+        verificationLevel: {
+          name: verificationLevel.name,
+          color: verificationLevel.color,
+          icon: verificationLevel.icon,
+          threshold: verificationLevel.threshold
+        },
+        unlockedFeatures,
+        nextLevel
       }
     });
 
