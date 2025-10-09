@@ -7,7 +7,6 @@ import { useState, useEffect } from 'react';
 import IslamicBanner from '../shared/IslamicBanner';
 import MenuBar from '../shared/MenuBar';
 import VerificationBadge from '../shared/VerificationBadge';
-import { getAuth } from '@/lib/auth';
 
 // تحويل أسماء الميزات للعربية
 function getFeatureName(feature) {
@@ -31,8 +30,12 @@ export default function StatsPage({ user, onNavigate, onEditProfile, onLogout })
   // جلب بيانات التوثيق من API
   useEffect(() => {
     if (user) {
-      const { token } = getAuth();
-      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       fetch('/api/users/stats', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -64,20 +67,20 @@ export default function StatsPage({ user, onNavigate, onEditProfile, onLogout })
     <div className="min-h-screen bg-stone-50 flex flex-col">
       {/* 🕌 البانر */}
       <IslamicBanner />
-      
+
       {/* 📱 القائمة */}
-      <MenuBar 
+      <MenuBar
         user={user}
         currentPage="stats"
         onNavigate={onNavigate}
         onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
-      
+
       {/* 📄 المحتوى */}
       <div className="flex-1 p-4">
         <div className="max-w-2xl mx-auto space-y-4">
-          
+
           {/* 🎯 دعوات هذا الشهر */}
           <div className="bg-white rounded-lg border border-stone-200 p-6 text-center">
             <div className="text-5xl font-bold text-emerald-600 mb-2">
@@ -93,11 +96,11 @@ export default function StatsPage({ user, onNavigate, onEditProfile, onLogout })
               <h3 className="text-lg font-bold text-stone-800 mb-4">
                 حالة التوثيق
               </h3>
-              
+
               <div className="text-center mb-4">
-                <VerificationBadge 
-                  level={verificationData.verificationLevel} 
-                  size="lg" 
+                <VerificationBadge
+                  level={verificationData.verificationLevel}
+                  size="lg"
                 />
                 <p className="text-2xl font-bold text-emerald-600 mt-2">
                   {verificationData.interactionRate}%
@@ -143,21 +146,21 @@ export default function StatsPage({ user, onNavigate, onEditProfile, onLogout })
           <div className="bg-white rounded-lg border border-stone-200 p-6">
             <h3 className="font-semibold text-stone-800 mb-4">إحصائيات عامة</h3>
             <div className="space-y-3">
-              
+
               <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
                 <span className="text-stone-600">إجمالي دعواتك</span>
                 <span className="font-semibold text-emerald-600">
                   {verificationData?.totalPrayersGiven || 0}
                 </span>
               </div>
-              
+
               <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
                 <span className="text-stone-600">دعا لك</span>
                 <span className="font-semibold text-emerald-600">
                   {verificationData?.prayersReceivedCount || 0} مؤمن
                 </span>
               </div>
-              
+
               <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
                 <span className="text-stone-600">طلبات استُجيبت</span>
                 <span className="font-semibold text-amber-600">

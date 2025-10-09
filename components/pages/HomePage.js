@@ -10,12 +10,10 @@ import MenuBar from '../shared/MenuBar';
 import CountdownTimer from '../shared/CountdownTimer';
 import VerificationBadge from '../shared/VerificationBadge';
 import ReactionButtons from '../shared/ReactionButtons';
-import PrayerRequestCard from '../shared/PrayerRequestCard';
 import TopWeeklyUser from '../shared/TopWeeklyUser';
 import InstallPrompt from '../shared/InstallPrompt';
 import ShareButton from '../shared/ShareButton';
 import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
-import { getAuth } from '@/lib/auth';
 
 export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) {
   // 🎲 رسالة تشجيعية عشوائية
@@ -106,8 +104,11 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   // ⏰ التحقق من حدود الطلبات عند التحميل
   useEffect(() => {
     if (user) {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
       fetch('/api/prayer-request/check-limit', {
-        headers: { Authorization: `Bearer ${getAuth().token}` }
+        headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.json())
         .then(data => {
@@ -129,7 +130,8 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   // 🌟 جلب بيانات التوثيق والميزات
   useEffect(() => {
     if (user) {
-      const { token } = getAuth();
+      const token = localStorage.getItem('token');
+      if (!token) return;
       
       fetch('/api/users/stats', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -510,7 +512,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         {/* 👤 Footer */}
         <div className="text-center text-sm text-stone-600 py-6 border-t border-stone-200">
           <p className="mb-2">منصة الدعاء الجماعي © 2025</p>
-          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">الغافقي  🌿</span></p>
+          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">حيدر الغافقي  🌿</span></p>
         </div>
       </div>
 

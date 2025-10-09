@@ -19,10 +19,6 @@ import FAQPage from './pages/FAQPage';
 // 📊 استيراد الثوابت
 import { achievements } from './constants/messages';
 
-// 🔐 استيراد دوال المصادقة
-import { getAuth, clearAuth } from '@/lib/auth';
-
-
 // ===============================================
 // 🎯 المكون الرئيسي
 // ===============================================
@@ -30,13 +26,13 @@ export default function DuaPlatform() {
   // ===============================================
   // 📊 إدارة الحالة (State Management)
   // ===============================================
-  
+
   // التنقل بين الصفحات
   const [currentPage, setCurrentPage] = useState('landing');
-  
+
   // بيانات المستخدم
   const [user, setUser] = useState(null);
-  
+
   // نموذج التسجيل
   const [formData, setFormData] = useState({
     fullName: '',
@@ -45,26 +41,33 @@ export default function DuaPlatform() {
     city: ''
   });
 
-
   // ===============================================
   // 🔄 التحقق من الجلسة عند التحميل
   // ===============================================
   useEffect(() => {
-    const { user, token, isValid } = getAuth();
-    if (isValid) {
-      setUser(user);
-      setCurrentPage('home');
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        setCurrentPage('home');
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setCurrentPage('landing');
+      }
     } else {
-      clearAuth();
       setCurrentPage('landing');
     }
   }, []);
 
-
   // ===============================================
   // 🎯 الدوال المساعدة (Helper Functions)
   // ===============================================
-  
+
   /**
    * حساب الوقت المنقضي
    */
@@ -87,7 +90,6 @@ export default function DuaPlatform() {
     return achievements.find(a => a.count > userPrayerCount) || achievements[achievements.length - 1];
   };
 
-
   // ===============================================
   // 🔧 معالجات الأحداث (Event Handlers)
   // ===============================================
@@ -100,16 +102,16 @@ export default function DuaPlatform() {
       alert('الرجاء إدخال الاسم الكامل واسم الأم');
       return;
     }
-    
+
     // TODO: ربط بـ API التسجيل
     const newUser = {
       ...data,
       id: Date.now(),
-      displayName: data.showFullName 
+      displayName: data.showFullName
         ? `${data.fullName}${data.city ? ` (${data.city})` : ''}`
         : `${data.fullName.split(' ')[0]}...`
     };
-    
+
     setUser(newUser);
     setCurrentPage('home');
   };
@@ -119,7 +121,8 @@ export default function DuaPlatform() {
    */
   const handleLogin = (userData, token) => {
     setUser(userData);
-    // TODO: حفظ الـ token
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
     setCurrentPage('home');
   };
 
@@ -127,7 +130,8 @@ export default function DuaPlatform() {
    * معالجة تسجيل الخروج
    */
   const handleLogout = () => {
-    clearAuth();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
     setCurrentPage('landing');
   };
@@ -162,7 +166,7 @@ export default function DuaPlatform() {
       alert('الرجاء إدخال الاسم الكامل واسم الأم للمتوفى');
       return;
     }
-    
+
     // TODO: ربط بـ API
     alert('تم إرسال طلب الدعاء للمتوفى إن شاء الله');
   };
@@ -195,7 +199,6 @@ export default function DuaPlatform() {
     alert('تم إرسال رسالتك بنجاح! سنرد عليك قريباً إن شاء الله');
   };
 
-
   // ===============================================
   // 🎨 عرض الصفحة المناسبة (Page Rendering)
   // ===============================================
@@ -208,7 +211,7 @@ export default function DuaPlatform() {
   // صفحة تسجيل الدخول
   if (currentPage === 'login') {
     return (
-      <LoginPage 
+      <LoginPage
         onLogin={handleLogin}
         onSwitchToRegister={() => setCurrentPage('register')}
       />
@@ -218,7 +221,7 @@ export default function DuaPlatform() {
   // صفحة التسجيل
   if (currentPage === 'register') {
     return (
-      <RegisterPage 
+      <RegisterPage
         onRegister={handleRegister}
         onSwitchToLogin={() => setCurrentPage('login')}
       />
@@ -228,7 +231,7 @@ export default function DuaPlatform() {
   // صفحة من نحن
   if (currentPage === 'about') {
     return (
-      <AboutPage 
+      <AboutPage
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
@@ -240,7 +243,7 @@ export default function DuaPlatform() {
   // صفحة الإحصائيات
   if (currentPage === 'stats') {
     return (
-      <StatsPage 
+      <StatsPage
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
@@ -252,7 +255,7 @@ export default function DuaPlatform() {
   // صفحة الإنجازات
   if (currentPage === 'achievements') {
     return (
-      <AchievementsPage 
+      <AchievementsPage
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
@@ -264,7 +267,7 @@ export default function DuaPlatform() {
   // صفحة الأسئلة الشائعة
   if (currentPage === 'faq') {
     return (
-      <FAQPage 
+      <FAQPage
         user={user}
         onNavigate={handleNavigate}
         onEditProfile={handleEditProfile}
@@ -275,7 +278,7 @@ export default function DuaPlatform() {
 
   // الصفحة الرئيسية (Home) - الافتراضية
   return (
-    <HomePage 
+    <HomePage
       user={user}
       onNavigate={handleNavigate}
       onEditProfile={handleEditProfile}
