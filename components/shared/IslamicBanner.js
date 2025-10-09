@@ -27,29 +27,16 @@ export default function IslamicBanner() {
         ></div>
       </div>
       
-      {/* 📝 المحتوى */}
+      {/* 📝 المحتوى - Logo "يُجيب" */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {bannerData?.active ? (
-          <a 
-            href={bannerData.link || '#'} 
-            target={bannerData.link ? '_blank' : '_self'}
-            rel={bannerData.link ? 'noopener noreferrer' : undefined}
-            className="block w-full h-full flex items-center justify-center hover:opacity-90 transition-opacity"
-          >
-            <div className="text-white text-center px-4">
-              <p className="font-medium">{bannerData.text}</p>
+        <div className="text-center">
+          <div className="logo-text mb-1">يُجيب</div>
+          {bannerData?.active && (
+            <div className="text-amber-200 text-xs opacity-75">
+              {bannerData.text}
             </div>
-          </a>
-        ) : (
-          <div className="text-center">
-            <div className="text-amber-200 text-xs mb-1 opacity-75">
-              مساحة إعلانية
-            </div>
-            <div className="text-white text-sm font-arabic">
-              ✦ ✦ ✦
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

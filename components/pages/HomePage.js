@@ -11,18 +11,9 @@ import CountdownTimer from '../shared/CountdownTimer';
 import VerificationBadge from '../shared/VerificationBadge';
 import ReactionButtons from '../shared/ReactionButtons';
 import PrayerRequestCard from '../shared/PrayerRequestCard';
-import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
-import { getAuth } from '@/lib/auth';بات الدعاء + إرسال طلب جديد
-// ===============================================
-
-import { useState, useEffect } from 'react';
-import { Share2, Send, X } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
-import CountdownTimer from '../shared/CountdownTimer';
-import VerificationBadge from '../shared/VerificationBadge';
-import ReactionButtons from '../shared/ReactionButtons';
 import TopWeeklyUser from '../shared/TopWeeklyUser';
+import InstallPrompt from '../shared/InstallPrompt';
+import ShareButton from '../shared/ShareButton';
 import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
 import { getAuth } from '@/lib/auth';
 
@@ -510,20 +501,21 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         </div>
 
         {/* 📤 زر المشاركة */}
-        <button className="w-full bg-sky-600 hover:bg-sky-700 text-white p-5 rounded-lg transition-colors flex items-center justify-center gap-3">
-          <Share2 className="w-5 h-5" />
-          <div className="text-center">
-            <p className="font-semibold">شارك الموقع</p>
-            <p className="text-sm opacity-90">كل مؤمن جديد يعني دعوات أكثر إن شاء الله</p>
-          </div>
-        </button>
+        <ShareButton 
+          title="منصة الدعاء الجماعي"
+          text="ادعُ واطلب الدعاء من آلاف المؤمنين حول العالم 🤲"
+          url="https://yojeeb.com"
+        />
 
         {/* 👤 Footer */}
         <div className="text-center text-sm text-stone-600 py-6 border-t border-stone-200">
           <p className="mb-2">منصة الدعاء الجماعي © 2025</p>
-          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">حيدر الغافقي  🌿</span></p>
+          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">الغافقي  🌿</span></p>
         </div>
       </div>
+
+      {/* 📲 Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 }

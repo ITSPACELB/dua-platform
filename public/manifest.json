@@ -1,7 +1,7 @@
 {
-  "name": "منصة الدعاء الجماعي",
-  "short_name": "الدعاء الجماعي",
-  "description": "منصة لتجميع المؤمنين من كل أنحاء العالم للدعاء المشترك",
+  "name": "منصة الدعاء الجماعي - يُجيب",
+  "short_name": "يُجيب",
+  "description": "ادعُ واطلب الدعاء من آلاف المؤمنين حول العالم",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafaf9",
@@ -23,6 +23,24 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["lifestyle", "social"],
-  "screenshots": []
+  "categories": ["lifestyle", "social", "religion"],
+  "screenshots": [
+    {
+      "src": "/screenshot1.png",
+      "sizes": "1080x1920",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "طلب دعاء",
+      "short_name": "دعاء",
+      "description": "اطلب دعاء من المؤمنين",
+      "url": "/?action=request",
+      "icons": [{
+        "src": "/icon-192.png",
+        "sizes": "192x192"
+      }]
+    }
+  ]
 }

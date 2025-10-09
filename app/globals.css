@@ -78,3 +78,55 @@ textarea {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
+
+/* Logo text "يُجيب" styling */
+.logo-text {
+  font-family: 'Traditional Arabic', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #16a34a;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Splash screen (for PWA) */
+@media (display-mode: standalone) {
+  .splash-screen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  
+  .splash-logo {
+    color: white;
+    font-size: 3rem;
+    font-family: 'Traditional Arabic', serif;
+    animation: fadeInScale 0.5s ease-out;
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Accessibility - focus visible */
+*:focus-visible {
+  outline: 3px solid #16a34a;
+  outline-offset: 2px;
+}
+
+/* Better touch targets for mobile */
+button, a {
+  min-height: 44px;
+  min-width: 44px;
+}
