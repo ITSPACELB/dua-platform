@@ -8,6 +8,21 @@ import { Share2, Send, X } from 'lucide-react';
 import IslamicBanner from '../shared/IslamicBanner';
 import MenuBar from '../shared/MenuBar';
 import CountdownTimer from '../shared/CountdownTimer';
+import VerificationBadge from '../shared/VerificationBadge';
+import ReactionButtons from '../shared/ReactionButtons';
+import PrayerRequestCard from '../shared/PrayerRequestCard';
+import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
+import { getAuth } from '@/lib/auth';بات الدعاء + إرسال طلب جديد
+// ===============================================
+
+import { useState, useEffect } from 'react';
+import { Share2, Send, X } from 'lucide-react';
+import IslamicBanner from '../shared/IslamicBanner';
+import MenuBar from '../shared/MenuBar';
+import CountdownTimer from '../shared/CountdownTimer';
+import VerificationBadge from '../shared/VerificationBadge';
+import ReactionButtons from '../shared/ReactionButtons';
+import TopWeeklyUser from '../shared/TopWeeklyUser';
 import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
 import { getAuth } from '@/lib/auth';
 
@@ -34,28 +49,44 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   const [requests] = useState([
     {
       id: 1,
+      userId: 123,
       userName: 'أحمد بن سارة',
       type: 'need',
       timestamp: new Date(Date.now() - 5 * 60000),
       prayerCount: 12,
-      prayed: false
+      prayed: false,
+      verificationLevel: {
+        name: 'BLUE',
+        color: 'blue',
+        icon: '✓',
+        threshold: 80
+      }
     },
     {
       id: 2,
+      userId: 456,
       userName: 'ماريا بنت كاثرين',
       type: 'need',
       timestamp: new Date(Date.now() - 15 * 60000),
       prayerCount: 8,
-      prayed: false
+      prayed: false,
+      verificationLevel: {
+        name: 'GREEN',
+        color: 'emerald',
+        icon: '✓✓',
+        threshold: 90
+      }
     },
     {
       id: 3,
+      userId: 789,
       deceasedName: 'يوسف بن مريم',
       relation: 'أب',
       type: 'deceased',
       timestamp: new Date(Date.now() - 20 * 60000),
       prayerCount: 15,
-      prayed: false
+      prayed: false,
+      verificationLevel: null
     }
   ]);
 
@@ -66,6 +97,20 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
     motherName: '',
     relation: ''
   });
+
+  // 🌟 ميزات التوثيق المتقدم
+  const [stats, setStats] = useState(null);
+  const [canCollective, setCanCollective] = useState(false);
+  const [canPrivate, setCanPrivate] = useState(false);
+  const [selectedUser, setSelectedUser] = useState('');
+  const [activeUsers] = useState([
+    { id: 1, displayName: 'أحمد بن سارة', verificationLevel: { icon: '✓' } },
+    { id: 2, displayName: 'ماريا بنت كاثرين', verificationLevel: { icon: '✓✓' } },
+    { id: 3, displayName: 'فاطمة بنت علي', verificationLevel: { icon: '👑' } }
+  ]);
+
+  // 🏆 أفضل مستخدم أسبوعياً
+  const [topWeeklyUser, setTopWeeklyUser] = useState(null);
 
   // ⏰ التحقق من حدود الطلبات عند التحميل
   useEffect(() => {
@@ -89,6 +134,34 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         .catch(err => console.error('Error checking limits:', err));
     }
   }, [user]);
+
+  // 🌟 جلب بيانات التوثيق والميزات
+  useEffect(() => {
+    if (user) {
+      const { token } = getAuth();
+      
+      fetch('/api/users/stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setStats(data.stats);
+            setCanCollective(data.stats.unlockedFeatures?.includes('collective_prayer') || false);
+            setCanPrivate(data.stats.unlockedFeatures?.includes('private_prayer') || false);
+          }
+        })
+        .catch(err => console.error('Error fetching stats:', err));
+    }
+  }, [user]);
+
+  // 🏆 جلب أفضل مستخدم أسبوعياً
+  useEffect(() => {
+    fetch('/api/users/top-weekly')
+      .then(res => res.json())
+      .then(data => setTopWeeklyUser(data))
+      .catch(err => console.error('Error fetching top weekly user:', err));
+  }, []);
 
   // 🕐 حساب الوقت
   const getTimeAgo = (timestamp) => {
@@ -117,6 +190,27 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
     alert('تم إرسال طلب الدعاء للمتوفى إن شاء الله');
     setShowDeceasedForm(false);
     setDeceasedForm({ fullName: '', motherName: '', relation: '' });
+  };
+
+  const handleReact = async (requestId, reactionType) => {
+    // TODO: ربط بـ API
+    console.log('React:', requestId, reactionType);
+    alert(`تم إرسال رد الفعل: ${reactionType}`);
+  };
+
+  const handleCollectivePrayer = async () => {
+    // TODO: ربط بـ API
+    alert('تم إرسال دعاءك لكل المؤمنين! جزاك الله خيراً 🌍');
+  };
+
+  const handlePrivatePrayer = async () => {
+    if (!selectedUser) {
+      alert('الرجاء اختيار شخص للدعاء له');
+      return;
+    }
+    // TODO: ربط بـ API
+    alert('تم إرسال دعاء خاص إن شاء الله ⭐');
+    setSelectedUser('');
   };
 
   return (
@@ -285,6 +379,53 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
           <p className="text-stone-500 text-sm">مؤمن</p>
         </div>
 
+        {/* 🏆 أفضل مستخدم أسبوعياً */}
+        {topWeeklyUser && (
+          <TopWeeklyUser topUser={topWeeklyUser} />
+        )}
+
+        {/* 🌟 ميزات التوثيق المتقدم */}
+        {canCollective && (
+          <button
+            onClick={handleCollectivePrayer}
+            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-6 rounded-lg transition-all hover:shadow-lg"
+          >
+            <div className="text-center">
+              <div className="text-3xl mb-2">🌍</div>
+              <h3 className="text-lg font-bold mb-1">ادعُ لكل المؤمنين</h3>
+              <p className="text-sm opacity-90">ميزة التوثيق المتقدم 🟢</p>
+            </div>
+          </button>
+        )}
+
+        {canPrivate && (
+          <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6 rounded-lg">
+            <div className="text-center mb-3">
+              <div className="text-3xl mb-2">⭐</div>
+              <h3 className="text-lg font-bold">دعاء خاص</h3>
+              <p className="text-sm opacity-90 mb-3">ميزة التوثيق الذهبي 👑</p>
+            </div>
+            <select 
+              value={selectedUser}
+              onChange={(e) => setSelectedUser(e.target.value)}
+              className="w-full p-3 rounded-lg text-stone-800 border-0 focus:ring-2 focus:ring-amber-300"
+            >
+              <option value="">اختر شخصاً...</option>
+              {activeUsers.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.displayName} {u.verificationLevel?.icon}
+                </option>
+              ))}
+            </select>
+            <button 
+              onClick={handlePrivatePrayer} 
+              className="mt-3 w-full bg-white text-amber-600 py-2.5 rounded-lg font-semibold hover:bg-amber-50 transition-colors"
+            >
+              إرسال دعاء خاص
+            </button>
+          </div>
+        )}
+
         {/* 🤲 من يطلب دعاءنا */}
         <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
           <div className="bg-emerald-600 p-4 border-b border-emerald-700">
@@ -306,6 +447,9 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
                           : request.userName
                         }
                       </h4>
+                      {request.verificationLevel && (
+                        <VerificationBadge level={request.verificationLevel} size="sm" />
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-stone-600 mb-2">
                       <span>{getTimeAgo(request.timestamp)}</span>
@@ -326,6 +470,20 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
                   >
                     خذ لحظة وادعُ {request.type === 'deceased' ? 'له' : `لـ ${request.userName.split(' ')[0]}`} 🤲
                   </button>
+                )}
+
+                {/* Show reactions if user is request owner */}
+                {request.userId === user?.id && (
+                  <div className="mt-4 pt-4 border-t border-stone-200">
+                    <p className="text-sm text-stone-600 mb-2">
+                      {request.prayerCount} شخص دعا لك
+                    </p>
+                    <ReactionButtons 
+                      requestId={request.id}
+                      currentUserReaction={null}
+                      onReact={handleReact}
+                    />
+                  </div>
                 )}
               </div>
             ))}
@@ -363,7 +521,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         {/* 👤 Footer */}
         <div className="text-center text-sm text-stone-600 py-6 border-t border-stone-200">
           <p className="mb-2">منصة الدعاء الجماعي © 2025</p>
-          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">الغافقي 🌿</span></p>
+          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">حيدر الغافقي  🌿</span></p>
         </div>
       </div>
     </div>
