@@ -7,7 +7,6 @@ import { useState, useEffect } from 'react';
 import IslamicBanner from '../shared/IslamicBanner';
 import MenuBar from '../shared/MenuBar';
 import { achievements } from '../constants/messages';
-import { getAuth } from '@/lib/auth';
 
 // مستويات التوثيق
 const VERIFICATION_LEVELS = {
@@ -39,7 +38,7 @@ export default function AchievementsPage({ user, onNavigate, onEditProfile, onLo
   // جلب بيانات المستخدم من API
   useEffect(() => {
     if (user) {
-      const { token } = getAuth();
+      const token = localStorage.getItem('token');
       
       fetch('/api/users/stats', {
         headers: {

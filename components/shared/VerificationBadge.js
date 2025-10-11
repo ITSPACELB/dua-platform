@@ -1,18 +1,17 @@
-// Props: {level, size='md', showTooltip=true}
+'use client'
 
-// Sizes: sm (16px), md (20px), lg (24px)
+export default function VerificationBadge({ level, size = 'md', showTooltip = true }) {
+  if (!level) return null;
 
-// UI:
-<div className="relative inline-flex items-center">
-  {level.icon && (
-    <span className={`text-${size}`} title={showTooltip ? level.name : ''}>
+  const sizeClasses = {
+    sm: 'text-base',
+    md: 'text-lg', 
+    lg: 'text-2xl'
+  };
+
+  return (
+    <span className={sizeClasses[size]} title={showTooltip ? level.name : ''}>
       {level.icon}
     </span>
-  )}
-  {showTooltip && (
-    <div className="tooltip">معدل التفاعل {level.threshold}%+</div>
-  )}
-</div>
-
-// CSS: Tailwind with dynamic colors
-// blue → bg-blue-500, green → bg-emerald-500, gold → bg-amber-500
+  );
+}

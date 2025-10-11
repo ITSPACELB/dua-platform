@@ -1,6 +1,9 @@
-// GET /api/settings/banner - Public endpoint
+import { NextResponse } from 'next/server';
 
-// Query:
-// SELECT banner_text, banner_link, banner_active FROM site_settings WHERE id=1
-
-// Return: {text, link, active}
+export async function GET() {
+  return NextResponse.json({
+    active: false,
+    text: '',
+    link: ''
+  });
+}
