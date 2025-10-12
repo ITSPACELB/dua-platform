@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['yojeeb.com', 'www.yojeeb.com', 'localhost:3000']
+    }
+  },
+
   images: {
     domains: ['localhost'],
   },
