@@ -5,6 +5,9 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// ============================================================================
+// 📤 POST - تسجيل مستخدم جديد (محسّن)
+// ============================================================================
 export async function POST(request) {
   try {
     const { 
@@ -14,11 +17,12 @@ export async function POST(request) {
       city, 
       showFullName, 
       email,
+      phoneNumber,
       uniqueQuestion,
       questionAnswer 
     } = await request.json();
 
-    // التحقق من البيانات المطلوبة
+    // التحقق من البيانات الأساسية المطلوبة
     if (!fullName || !motherName) {
       return NextResponse.json(
         { error: 'الاسم الكامل واسم الأم مطلوبان' },
@@ -26,7 +30,7 @@ export async function POST(request) {
       );
     }
 
-    // 1. Check uniqueness (internal check)
+    // فحص التفرد - البحث عن مستخدمين بنفس الاسم
     const existingUsers = await query(
       'SELECT id, unique_question FROM users WHERE full_name = $1 AND mother_name = $2',
       [fullName, motherName]
@@ -34,26 +38,24 @@ export async function POST(request) {
 
     const isUnique = existingUsers.rows.length === 0;
 
-    // 2. If not unique && no question → return 409 with available questions
+    // إذا لم يكن فريداً ولا يوجد سؤال سري → رفض
     if (!isUnique && !uniqueQuestion) {
-      // Get available questions from existing users
-      const availableQuestions = existingUsers.rows
+      const existingQuestions = existingUsers.rows
         .map(u => u.unique_question)
-        .filter(q => q); // Filter out null questions
+        .filter(q => q);
 
       return NextResponse.json(
         { 
           error: 'المستخدم موجود بالفعل. يرجى اختيار سؤال تمييز.',
           requiresQuestion: true,
-          availableQuestions: availableQuestions.length > 0 ? availableQuestions : undefined
+          existingQuestions: existingQuestions.length > 0 ? existingQuestions : undefined
         },
         { status: 409 }
       );
     }
 
-    // If question provided, validate uniqueness of the combination
+    // إذا كان هناك سؤال، تحقق من عدم تكراره
     if (uniqueQuestion && !isUnique) {
-      // Check if same question already exists for this name combination
       const duplicateQuestion = await query(
         'SELECT id FROM users WHERE full_name = $1 AND mother_name = $2 AND unique_question = $3',
         [fullName, motherName, uniqueQuestion]
@@ -70,13 +72,50 @@ export async function POST(request) {
       }
     }
 
-    // 3. Hash question_answer with bcrypt (if provided)
+    // تشفير إجابة السؤال السري (إلزامي الآن)
     let questionAnswerHash = null;
     if (questionAnswer) {
       questionAnswerHash = await bcrypt.hash(questionAnswer.trim().toLowerCase(), 10);
+    } else if (!isUnique) {
+      // إذا لم يكن فريداً، السؤال والجواب إلزاميان
+      return NextResponse.json(
+        { 
+          error: 'يجب إدخال إجابة السؤال السري',
+          requiresQuestion: true
+        },
+        { status: 400 }
+      );
     }
 
-    // 4. INSERT INTO users
+    // التحقق من رقم الهاتف (إن وُجد)
+    let phoneVerified = false;
+    let phoneBonusApplied = false;
+    
+    if (phoneNumber) {
+      // التحقق من صحة تنسيق رقم الهاتف
+      const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/;
+      if (!phoneRegex.test(phoneNumber)) {
+        return NextResponse.json(
+          { error: 'تنسيق رقم الهاتف غير صحيح' },
+          { status: 400 }
+        );
+      }
+
+      // فحص إذا كان الرقم مستخدماً من قبل
+      const phoneCheck = await query(
+        'SELECT id FROM users WHERE phone_number = $1',
+        [phoneNumber]
+      );
+
+      if (phoneCheck.rows.length > 0) {
+        return NextResponse.json(
+          { error: 'رقم الهاتف مستخدم من قبل' },
+          { status: 409 }
+        );
+      }
+    }
+
+    // إدراج المستخدم الجديد
     const result = await query(
       `INSERT INTO users (
         full_name, 
@@ -86,12 +125,15 @@ export async function POST(request) {
         question_answer_hash, 
         city, 
         show_full_name, 
-        email, 
+        email,
+        phone_number,
+        phone_verified,
+        phone_bonus_applied,
         created_at, 
         last_login
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-       RETURNING id, full_name, mother_name, nickname, city, show_full_name, email, unique_question, created_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+       RETURNING id, full_name, mother_name, nickname, city, show_full_name, email, phone_number, unique_question, created_at`,
       [
         fullName, 
         motherName, 
@@ -100,20 +142,49 @@ export async function POST(request) {
         questionAnswerHash,
         city || null, 
         showFullName !== false, 
-        email || null
+        email || null,
+        phoneNumber || null,
+        phoneVerified,
+        phoneBonusApplied
       ]
     );
 
     const user = result.rows[0];
 
-    // إنشاء سجل إحصائيات للمستخدم
+    // حساب نقاط المكافأة إذا كان هناك رقم هاتف
+    let bonusPoints = 0;
+    if (phoneNumber) {
+      const bonusSettings = await query(
+        `SELECT value FROM platform_settings WHERE key = 'phone_bonus_points'`
+      );
+      bonusPoints = bonusSettings.rows[0]?.value?.value || 5;
+    }
+
+    // إنشاء سجل إحصائيات للمستخدم (مع نقاط المكافأة)
     await query(
-      `INSERT INTO user_stats (user_id, total_prayers_given, total_notifications_received, interaction_rate)
-       VALUES ($1, 0, 0, 0)`,
-      [user.id]
+      `INSERT INTO user_stats (
+        user_id, 
+        total_prayers_given, 
+        total_notifications_received, 
+        interaction_rate
+      )
+       VALUES ($1, $2, 0, $3)`,
+      [
+        user.id, 
+        bonusPoints, // نقاط المكافأة تُضاف كدعوات
+        bonusPoints > 0 ? 100 : 0 // إذا كان هناك مكافأة، معدل التفاعل يبدأ من 100%
+      ]
     );
 
-    // 5. Generate JWT (30 days)
+    // تحديث phone_bonus_applied إذا كانت هناك مكافأة
+    if (bonusPoints > 0) {
+      await query(
+        'UPDATE users SET phone_bonus_applied = true WHERE id = $1',
+        [user.id]
+      );
+    }
+
+    // إنشاء JWT token
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -125,16 +196,18 @@ export async function POST(request) {
       { expiresIn: '30d' }
     );
 
-    // إنشاء displayName
+    // إنشاء اسم العرض
     const displayName = user.nickname 
       ? user.nickname
       : user.show_full_name
         ? `${user.full_name}${user.city ? ` (${user.city})` : ''}`
         : `${user.full_name.split(' ')[0]}...`;
 
-    // 6. Return {user, token}
     return NextResponse.json({
       success: true,
+      message: bonusPoints > 0 
+        ? `مرحباً بك! حصلت على ${bonusPoints} نقاط مكافأة 🎁`
+        : 'تم التسجيل بنجاح',
       user: {
         id: user.id,
         fullName: user.full_name,
@@ -143,9 +216,11 @@ export async function POST(request) {
         city: user.city,
         displayName,
         email: user.email,
+        phoneNumber: user.phone_number,
         showFullName: user.show_full_name,
         uniqueQuestion: user.unique_question,
-        createdAt: user.created_at
+        createdAt: user.created_at,
+        bonusPoints
       },
       token
     });

@@ -4,15 +4,52 @@
   "description": "ادعُ واطلب الدعاء من آلاف المؤمنين حول العالم",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fafaf9",
-  "theme_color": "#16a34a",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
   "orientation": "portrait",
   "dir": "rtl",
   "lang": "ar",
+  "scope": "/",
   "icons": [
+    {
+      "src": "/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-384.png",
+      "sizes": "384x384",
       "type": "image/png",
       "purpose": "any maskable"
     },
@@ -23,24 +60,47 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["lifestyle", "social", "religion"],
   "screenshots": [
     {
-      "src": "/screenshot1.png",
-      "sizes": "1080x1920",
-      "type": "image/png"
+      "src": "/screenshot-1.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-2.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
     }
   ],
+  "categories": ["lifestyle", "social"],
   "shortcuts": [
     {
       "name": "طلب دعاء",
       "short_name": "دعاء",
-      "description": "اطلب دعاء من المؤمنين",
+      "description": "اطلب الدعاء من المؤمنين",
       "url": "/?action=request",
-      "icons": [{
-        "src": "/icon-192.png",
-        "sizes": "192x192"
-      }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "الدعاء للآخرين",
+      "short_name": "ادعُ",
+      "description": "ادعُ للمؤمنين",
+      "url": "/?action=pray",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
-  ]
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }
