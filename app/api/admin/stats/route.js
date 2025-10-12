@@ -113,12 +113,12 @@ export async function GET(request) {
 
         // 1️⃣1️⃣ توزيع أنواع الطلبات
         const requestTypesResult = await query(
-            `SELECT prayer_type, COUNT(*) as count 
+            `SELECT type, COUNT(*) as count 
              FROM prayer_requests 
-             GROUP BY prayer_type`
+             GROUP BY type`
         );
         const requestTypes = requestTypesResult.rows.map(row => ({
-            type: row.prayer_type,
+            type: row.type,
             count: parseInt(row.count)
         }));
 

@@ -47,7 +47,7 @@ export async function POST(request) {
 
         // فحص إذا كان الطلب موجوداً
         const requestCheck = await query(
-            `SELECT id, requester_id, status FROM prayer_requests WHERE id = $1`,
+            `SELECT id, user_id, status FROM prayer_requests WHERE id = $1`,
             [requestId]
         );
 
@@ -61,7 +61,7 @@ export async function POST(request) {
         const prayerRequest = requestCheck.rows[0];
 
         // لا يمكن التفاعل مع طلبك الخاص
-        if (prayerRequest.requester_id === decoded.userId) {
+        if (prayerRequest.user_id === decoded.userId) {
             return NextResponse.json(
                 { error: 'لا يمكنك التفاعل مع طلبك الخاص' },
                 { status: 400 }
@@ -88,7 +88,7 @@ export async function POST(request) {
                  VALUES ($1, $2, $3, $4, NOW())
                  ON CONFLICT (request_id, reactor_id)
                  DO UPDATE SET reaction_type = $4, created_at = NOW()`,
-                [requestId, prayerRequest.requester_id, decoded.userId, reactionType]
+                [requestId, prayerRequest.user_id, decoded.userId, reactionType]
             );
 
             // جلب إجمالي ردود الفعل

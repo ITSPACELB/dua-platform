@@ -200,7 +200,7 @@ export async function GET(request) {
       `SELECT COUNT(DISTINCT pr.user_id) as count
        FROM prayer_requests pr
        JOIN prayers p ON pr.id = p.request_id
-       WHERE pr.requester_id = $1`,
+       WHERE pr.user_id = $1`,
       [userId]
     );
 
@@ -208,7 +208,7 @@ export async function GET(request) {
     const answeredResult = await query(
       `SELECT COUNT(*) as count
        FROM prayer_requests
-       WHERE requester_id = $1 AND status = 'answered'`,
+       WHERE user_id = $1 AND status = 'answered'`,
       [userId]
     );
 

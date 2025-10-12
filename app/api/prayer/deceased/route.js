@@ -48,7 +48,7 @@ export async function POST(request) {
         const lastRequest = await query(
             `SELECT created_at 
              FROM prayer_requests 
-             WHERE requester_id = $1 AND prayer_type = 'deceased'
+             WHERE user_id = $1 AND type = 'deceased'
              ORDER BY created_at DESC 
              LIMIT 1`,
             [decoded.userId]
@@ -75,8 +75,8 @@ export async function POST(request) {
         // إنشاء طلب الدعاء للمتوفى
         const result = await query(
             `INSERT INTO prayer_requests (
-                requester_id,
-                prayer_type,
+                user_id,
+                type,
                 deceased_name,
                 deceased_mother_name,
                 relation,

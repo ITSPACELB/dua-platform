@@ -38,25 +38,25 @@ export async function GET(request) {
         let whereClause = "pr.status = 'active' AND pr.expires_at > NOW()";
         
         if (type === 'general') {
-            whereClause += " AND pr.prayer_type = 'general'";
+            whereClause += " AND pr.type = 'general'";
         } else if (type === 'deceased') {
-            whereClause += " AND pr.prayer_type = 'deceased'";
+            whereClause += " AND pr.type = 'deceased'";
         } else if (type === 'sick') {
-            whereClause += " AND pr.prayer_type = 'sick'";
+            whereClause += " AND pr.type = 'sick'";
         }
 
         // جلب الطلبات مع بيانات المستخدم
         const result = await query(
             `SELECT 
                 pr.id,
-                pr.requester_id,
-                pr.prayer_type,
+                pr.user_id,
+                pr.type,
                 pr.deceased_name,
                 pr.deceased_mother_name,
                 pr.relation,
                 pr.is_name_private,
-                pr.sick_person_name,
-                pr.sick_person_mother_name,
+                pr.sick_name,
+                pr.sick_mother_name,
                 pr.created_at,
                 pr.total_prayers_received,
                 u.full_name,
@@ -70,7 +70,7 @@ export async function GET(request) {
                     WHERE p.request_id = pr.id AND p.user_id = $1
                 ) as has_prayed
              FROM prayer_requests pr
-             JOIN users u ON pr.requester_id = u.id
+             JOIN users u ON pr.user_id = u.id
              LEFT JOIN user_stats us ON u.id = us.user_id
              WHERE ${whereClause}
              ORDER BY 
@@ -90,12 +90,12 @@ export async function GET(request) {
         const requests = result.rows.map(row => {
             // تحديد اسم العرض
             let displayName;
-            if (row.prayer_type === 'deceased') {
+            if (row.type === 'deceased') {
                 displayName = `${row.deceased_name}${row.relation ? ` (${row.relation})` : ''}`;
-            } else if (row.prayer_type === 'sick' && row.is_name_private) {
+            } else if (row.type === 'sick' && row.is_name_private) {
                 displayName = 'مريض (اسم خاص)';
-            } else if (row.prayer_type === 'sick') {
-                displayName = row.sick_person_name;
+            } else if (row.type === 'sick') {
+                displayName = row.sick_name;
             } else {
                 displayName = row.nickname 
                     ? row.nickname
@@ -108,7 +108,7 @@ export async function GET(request) {
             const interactionRate = row.interaction_rate || 0;
             let verificationLevel = null;
             
-            if (row.prayer_type !== 'deceased') {
+            if (row.type !== 'deceased') {
                 if (interactionRate >= 98) {
                     verificationLevel = { name: 'GOLD', color: 'amber', icon: '👑', threshold: 98 };
                 } else if (interactionRate >= 90) {
@@ -120,8 +120,8 @@ export async function GET(request) {
 
             return {
                 id: row.id,
-                userId: row.requester_id,
-                type: row.prayer_type,
+                userId: row.user_id,
+                type: row.type,
                 displayName,
                 timestamp: row.created_at,
                 prayerCount: row.total_prayers_received,
@@ -212,7 +212,7 @@ export async function POST(request) {
         const lastRequest = await query(
             `SELECT created_at 
              FROM prayer_requests 
-             WHERE requester_id = $1 AND prayer_type = $2
+             WHERE user_id = $1 AND type = $2
              ORDER BY created_at DESC 
              LIMIT 1`,
             [decoded.userId, prayerType]
@@ -239,14 +239,14 @@ export async function POST(request) {
         // إنشاء الطلب الجديد
         const result = await query(
             `INSERT INTO prayer_requests (
-                requester_id,
-                prayer_type,
+                user_id,
+                type,
                 deceased_name,
                 deceased_mother_name,
                 relation,
                 is_name_private,
-                sick_person_name,
-                sick_person_mother_name,
+                sick_name,
+                sick_mother_name,
                 status,
                 created_at,
                 expires_at

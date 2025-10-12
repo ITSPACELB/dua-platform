@@ -38,7 +38,7 @@ export async function POST(request) {
 
         // فحص إذا كان الطلب موجود ونشط
         const requestCheck = await query(
-            `SELECT id, requester_id, status 
+            `SELECT id, user_id, status 
              FROM prayer_requests 
              WHERE id = $1`,
             [requestId]
@@ -61,7 +61,7 @@ export async function POST(request) {
         }
 
         // منع المستخدم من الدعاء لنفسه
-        if (prayerRequest.requester_id === decoded.userId) {
+        if (prayerRequest.user_id === decoded.userId) {
             return NextResponse.json(
                 { error: 'لا يمكنك الدعاء لطلبك الخاص' },
                 { status: 400 }

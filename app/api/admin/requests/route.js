@@ -58,22 +58,22 @@ export async function GET(request) {
         }
         
         if (type !== 'all') {
-            whereClause += ` AND pr.prayer_type = '${type}'`;
+            whereClause += ` AND pr.type = '${type}'`;
         }
 
         // جلب الطلبات
         const requestsResult = await query(
             `SELECT 
                 pr.id,
-                pr.requester_id,
-                pr.prayer_type,
+                pr.user_id,
+                pr.type,
                 pr.status,
                 pr.deceased_name,
                 pr.deceased_mother_name,
                 pr.relation,
                 pr.is_name_private,
-                pr.sick_person_name,
-                pr.sick_person_mother_name,
+                pr.sick_name,
+                pr.sick_mother_name,
                 pr.created_at,
                 pr.expires_at,
                 pr.answered_at,
@@ -82,7 +82,7 @@ export async function GET(request) {
                 u.mother_name,
                 u.nickname
              FROM prayer_requests pr
-             JOIN users u ON pr.requester_id = u.id
+             JOIN users u ON pr.user_id = u.id
              WHERE ${whereClause}
              ORDER BY pr.created_at DESC
              LIMIT $1 OFFSET $2`,
@@ -99,16 +99,16 @@ export async function GET(request) {
 
         const requests = requestsResult.rows.map(row => ({
             id: row.id,
-            requesterId: row.requester_id,
+            requesterId: row.user_id,
             requesterName: row.nickname || row.full_name,
-            type: row.prayer_type,
+            type: row.type,
             status: row.status,
             deceasedName: row.deceased_name,
             deceasedMotherName: row.deceased_mother_name,
             relation: row.relation,
             isNamePrivate: row.is_name_private,
-            sickPersonName: row.sick_person_name,
-            sickPersonMotherName: row.sick_person_mother_name,
+            sickPersonName: row.sick_name,
+            sickPersonMotherName: row.sick_mother_name,
             createdAt: row.created_at,
             expiresAt: row.expires_at,
             answeredAt: row.answered_at,

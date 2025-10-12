@@ -60,7 +60,7 @@ export async function GET(request) {
             const lastRequestResult = await query(
                 `SELECT created_at 
                  FROM prayer_requests 
-                 WHERE requester_id = $1 AND prayer_type = $2
+                 WHERE user_id = $1 AND type = $2
                  ORDER BY created_at DESC 
                  LIMIT 1`,
                 [decoded.userId, pt.type]
