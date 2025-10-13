@@ -29,7 +29,6 @@ export async function POST(request) {
 
         const { requestId, reactionType } = await request.json();
 
-        // التحقق من البيانات المطلوبة
         if (!requestId || !reactionType) {
             return NextResponse.json(
                 { error: 'معرّف الطلب ونوع رد الفعل مطلوبان' },
@@ -37,7 +36,6 @@ export async function POST(request) {
             );
         }
 
-        // التحقق من نوع رد الفعل
         if (!['heart', 'angel', 'like'].includes(reactionType)) {
             return NextResponse.json(
                 { error: 'نوع رد الفعل غير صحيح' },
@@ -45,7 +43,6 @@ export async function POST(request) {
             );
         }
 
-        // فحص إذا كان الطلب موجوداً
         const requestCheck = await query(
             `SELECT id, user_id, status FROM prayer_requests WHERE id = $1`,
             [requestId]
@@ -60,7 +57,6 @@ export async function POST(request) {
 
         const prayerRequest = requestCheck.rows[0];
 
-        // لا يمكن التفاعل مع طلبك الخاص
         if (prayerRequest.user_id === decoded.userId) {
             return NextResponse.json(
                 { error: 'لا يمكنك التفاعل مع طلبك الخاص' },
@@ -68,7 +64,6 @@ export async function POST(request) {
             );
         }
 
-        // فحص إذا كان المستخدم قد دعا لهذا الطلب
         const prayerCheck = await query(
             `SELECT id FROM prayers WHERE user_id = $1 AND request_id = $2`,
             [decoded.userId, requestId]
@@ -81,7 +76,6 @@ export async function POST(request) {
             );
         }
 
-        // محاولة إضافة رد الفعل (أو تحديثه إذا كان موجوداً)
         try {
             await query(
                 `INSERT INTO reactions (request_id, user_id, reactor_id, reaction_type, created_at)
@@ -91,7 +85,6 @@ export async function POST(request) {
                 [requestId, prayerRequest.user_id, decoded.userId, reactionType]
             );
 
-            // جلب إجمالي ردود الفعل
             const totalReactions = await query(
                 `SELECT 
                     reaction_type,
@@ -111,8 +104,6 @@ export async function POST(request) {
             totalReactions.rows.forEach(row => {
                 reactionCounts[row.reaction_type] = parseInt(row.count);
             });
-
-            // TODO: إرسال إشعار لصاحب الطلب (يمكن إضافته لاحقاً)
 
             return NextResponse.json({
                 success: true,
@@ -158,7 +149,6 @@ export async function GET(request) {
             );
         }
 
-        // جلب إحصائيات ردود الفعل
         const reactionStats = await query(
             `SELECT 
                 reaction_type,
@@ -179,7 +169,6 @@ export async function GET(request) {
             reactionCounts[row.reaction_type] = parseInt(row.count);
         });
 
-        // جلب أهم المتفاعلين
         const topReactors = await query(
             `SELECT 
                 u.full_name,
@@ -216,7 +205,6 @@ export async function GET(request) {
             };
         });
 
-        // فحص رد فعل المستخدم الحالي
         const userReaction = await query(
             `SELECT reaction_type FROM reactions 
              WHERE request_id = $1 AND reactor_id = $2`,

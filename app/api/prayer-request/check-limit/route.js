@@ -18,9 +18,6 @@ function verifyToken(request) {
     }
 }
 
-// ============================================================================
-// 📥 GET - فحص إذا كان المستخدم يستطيع طلب دعاء
-// ============================================================================
 export async function GET(request) {
     try {
         const decoded = verifyToken(request);
@@ -28,7 +25,6 @@ export async function GET(request) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
         }
 
-        // جلب حدود الطلبات
         const settingsResult = await query(
             `SELECT value FROM platform_settings WHERE key = 'request_limits'`
         );
@@ -39,7 +35,6 @@ export async function GET(request) {
             sick_hours: 6
         };
 
-        // فحص كل نوع من أنواع الطلبات
         const prayerTypes = [
             { key: 'prayer', type: 'general', hours: limits.prayer_hours },
             { key: 'deceased', type: 'deceased', hours: limits.deceased_hours },

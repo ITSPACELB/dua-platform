@@ -4,9 +4,6 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// ============================================================================
-// 🔐 التحقق من الـ Token
-// ============================================================================
 function verifyToken(request) {
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -34,7 +31,6 @@ export async function GET(request) {
         const type = searchParams.get('type') || 'all';
         const limit = parseInt(searchParams.get('limit') || '20');
 
-        // بناء شرط WHERE حسب النوع المطلوب
         let whereClause = "pr.status = 'active' AND pr.expires_at > NOW()";
         
         if (type === 'general') {
@@ -45,7 +41,6 @@ export async function GET(request) {
             whereClause += " AND pr.type = 'sick'";
         }
 
-        // جلب الطلبات مع بيانات المستخدم
         const result = await query(
             `SELECT 
                 pr.id,
@@ -64,7 +59,6 @@ export async function GET(request) {
                 u.city,
                 u.show_full_name,
                 us.interaction_rate,
-                -- فحص إذا كان المستخدم الحالي قد دعا لهذا الطلب
                 EXISTS(
                     SELECT 1 FROM prayers p 
                     WHERE p.request_id = pr.id AND p.user_id = $1
@@ -74,7 +68,6 @@ export async function GET(request) {
              LEFT JOIN user_stats us ON u.id = us.user_id
              WHERE ${whereClause}
              ORDER BY 
-                -- الأولوية حسب مستوى التوثيق
                 CASE 
                     WHEN us.interaction_rate >= 98 THEN 1
                     WHEN us.interaction_rate >= 90 THEN 2
@@ -86,9 +79,7 @@ export async function GET(request) {
             [decoded.userId, limit]
         );
 
-        // تنسيق البيانات للإرسال
         const requests = result.rows.map(row => {
-            // تحديد اسم العرض
             let displayName;
             if (row.type === 'deceased') {
                 displayName = `${row.deceased_name}${row.relation ? ` (${row.relation})` : ''}`;
@@ -104,7 +95,6 @@ export async function GET(request) {
                         : `${row.full_name.split(' ')[0]}...`;
             }
 
-            // حساب مستوى التوثيق
             const interactionRate = row.interaction_rate || 0;
             let verificationLevel = null;
             
@@ -165,7 +155,6 @@ export async function POST(request) {
             isNamePrivate = false
         } = body;
 
-        // التحقق من نوع الطلب
         if (!['general', 'deceased', 'sick'].includes(prayerType)) {
             return NextResponse.json(
                 { error: 'نوع الطلب غير صحيح' },
@@ -173,7 +162,6 @@ export async function POST(request) {
             );
         }
 
-        // التحقق من البيانات المطلوبة حسب النوع
         if (prayerType === 'deceased' && (!deceasedName || !deceasedMotherName)) {
             return NextResponse.json(
                 { error: 'يجب إدخال اسم المتوفى واسم والدته' },
@@ -188,7 +176,6 @@ export async function POST(request) {
             );
         }
 
-        // فحص الحدود الزمنية
         const limitCheck = await query(
             `SELECT value FROM platform_settings WHERE key = 'request_limits'`
         );
@@ -208,7 +195,6 @@ export async function POST(request) {
             hoursLimit = limits.prayer_hours;
         }
 
-        // فحص آخر طلب من نفس النوع
         const lastRequest = await query(
             `SELECT created_at 
              FROM prayer_requests 
@@ -236,7 +222,6 @@ export async function POST(request) {
             }
         }
 
-        // إنشاء الطلب الجديد
         const result = await query(
             `INSERT INTO prayer_requests (
                 user_id,
@@ -265,9 +250,6 @@ export async function POST(request) {
         );
 
         const newRequest = result.rows[0];
-
-        // TODO: جدولة إرسال الإشعارات بعد 30 دقيقة
-        // سيتم تطبيقه في المرحلة 5
 
         return NextResponse.json({
             success: true,

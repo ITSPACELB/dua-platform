@@ -33,7 +33,6 @@ export async function POST(request) {
             isNamePrivate = false 
         } = await request.json();
 
-        // التحقق من البيانات: إذا لم يكن الاسم خاصاً، يجب إدخال الاسم
         if (!isNamePrivate && (!sickPersonName || !sickPersonMotherName)) {
             return NextResponse.json(
                 { error: 'اسم المريض واسم والدته مطلوبان، أو اختر "اسم خاص"' },
@@ -41,7 +40,6 @@ export async function POST(request) {
             );
         }
 
-        // فحص الحد الزمني (6 ساعات)
         const limitCheck = await query(
             `SELECT value FROM platform_settings WHERE key = 'request_limits'`
         );
@@ -76,7 +74,6 @@ export async function POST(request) {
             }
         }
 
-        // إنشاء طلب الدعاء للمريض
         const result = await query(
             `INSERT INTO prayer_requests (
                 user_id,

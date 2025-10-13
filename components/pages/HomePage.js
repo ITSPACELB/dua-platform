@@ -192,8 +192,8 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
     fetch('/api/users/top-weekly')
       .then(res => res.json())
       .then(data => {
-        if (data.success) {
-          setTopWeeklyUser(data.topUser);
+        if (data && data.id) {
+          setTopWeeklyUser(data);
         }
       })
       .catch(err => console.error('Error fetching top user:', err));
@@ -322,7 +322,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
     if (!token) return;
 
     try {
-      const res = await fetch('/api/prayers', {
+      const res = await fetch('/api/prayer', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -559,7 +559,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
             </div>
           )}
 
-          {/* زر طلب دعاء للمريض - جديد */}
+          {/* زر طلب دعاء للمريض */}
           {sickLimit.canRequest ? (
             <button
               onClick={() => setShowSickForm(true)}
@@ -654,7 +654,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
           </div>
         )}
 
-        {/* 🏥 نموذج المريض - جديد */}
+        {/* 🏥 نموذج المريض */}
         {showSickForm && (
           <div className="bg-white p-6 rounded-lg border border-stone-200">
             <h3 className="text-lg font-semibold text-stone-800 mb-4 text-center">
@@ -733,10 +733,10 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
           <TopWeeklyUser topUser={topWeeklyUser} />
         )}
 
-        {/* 🌍 دعاء جماعي - ميزة التوثيق المتقدم */}
+        {/* 🌍 دعاء جماعي */}
         {canCollective && (
           <button
-onClick={handleCollectivePrayer}
+            onClick={handleCollectivePrayer}
             className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-6 rounded-lg transition-all hover:shadow-lg w-full"
           >
             <div className="text-center">
@@ -747,7 +747,7 @@ onClick={handleCollectivePrayer}
           </button>
         )}
 
-        {/* ⭐ دعاء خاص - ميزة التوثيق الذهبي */}
+        {/* ⭐ دعاء خاص */}
         {canPrivate && (
           <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6 rounded-lg">
             <div className="text-center mb-3">

@@ -1,2912 +1,0 @@
-=== COMPLETE PROJECT AUDIT ===
-
-=== ALL API ROUTES ===
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\auth\check-unique\route.js ---
-// POST endpoint
-// Body: {fullName, motherName, uniqueQuestion?, questionAnswer?}
-
-// Logic:
-// 1. Query DB: SELECT * FROM users WHERE full_name=$1 AND mother_name=$2
-// 2. If count === 0 → return {unique: true}
-// 3. If count === 1 && no question → return {unique: true, userId}
-// 4. If count > 1 && no question → return {unique: false, suggestedQuestion: 'father'}
-// 5. If question provided → verify answer → return {unique: true/false, userId}
-
-// Response: {unique: boolean, userId?: number, suggestedQuestion?: string}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\auth\check-uniqueness\route.js ---
-import { NextResponse } from 'next/server';
-
-export async function POST(request) {
-  try {
-    const { fullName, motherName } = await request.json();
-    
-    // TODO: Check database for uniqueness
-    // For now, always return true
-    return NextResponse.json({
-      isUnique: true,
-      message: 'الاسم متاح'
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'خطأ في الخادم' },
-      { status: 500 }
-    );
-  }
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\auth\login\route.js ---
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-export async function POST(request) {
-  try {
-    const { fullName, motherName } = await request.json();
-
-    // التحقق من البيانات المطلوبة
-    if (!fullName || !motherName) {
-      return NextResponse.json(
-        { error: 'الاسم الكامل واسم الأم مطلوبان' },
-        { status: 400 }
-      );
-    }
-
-    // البحث عن المستخدم
-    const result = await query(
-      `SELECT id, full_name, mother_name, city, show_full_name, email, created_at 
-       FROM users 
-       WHERE full_name = $1 AND mother_name = $2`,
-      [fullName, motherName]
-    );
-
-    if (result.rows.length === 0) {
-      return NextResponse.json(
-        { error: 'المستخدم غير موجود. الرجاء التسجيل أولاً.' },
-        { status: 404 }
-      );
-    }
-
-    const user = result.rows[0];
-
-    // تحديث آخر تسجيل دخول
-    await query(
-      'UPDATE users SET last_login = NOW() WHERE id = $1',
-      [user.id]
-    );
-
-    // إنشاء JWT token
-    const token = jwt.sign(
-      { 
-        userId: user.id, 
-        fullName: user.full_name,
-        motherName: user.mother_name 
-      },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
-    // إنشاء displayName
-    const displayName = user.show_full_name
-      ? `${user.full_name}${user.city ? ` (${user.city})` : ''}`
-      : `${user.full_name.split(' ')[0]}...`;
-
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        fullName: user.full_name,
-        motherName: user.mother_name,
-        city: user.city,
-        displayName,
-        email: user.email,
-        showFullName: user.show_full_name,
-        createdAt: user.created_at
-      },
-      token
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ أثناء تسجيل الدخول' },
-      { status: 500 }
-    );
-  }
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\auth\register\route.js ---
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-export async function POST(request) {
-  try {
-    const { 
-      fullName, 
-      motherName, 
-      nickname, 
-      city, 
-      showFullName, 
-      email,
-      uniqueQuestion,
-      questionAnswer 
-    } = await request.json();
-
-    // التحقق من البيانات المطلوبة
-    if (!fullName || !motherName) {
-      return NextResponse.json(
-        { error: 'الاسم الكامل واسم الأم مطلوبان' },
-        { status: 400 }
-      );
-    }
-
-    // 1. Check uniqueness (internal check)
-    const existingUsers = await query(
-      'SELECT id, unique_question FROM users WHERE full_name = $1 AND mother_name = $2',
-      [fullName, motherName]
-    );
-
-    const isUnique = existingUsers.rows.length === 0;
-
-    // 2. If not unique && no question → return 409 with available questions
-    if (!isUnique && !uniqueQuestion) {
-      // Get available questions from existing users
-      const availableQuestions = existingUsers.rows
-        .map(u => u.unique_question)
-        .filter(q => q); // Filter out null questions
-
-      return NextResponse.json(
-        { 
-          error: 'المستخدم موجود بالفعل. يرجى اختيار سؤال تمييز.',
-          requiresQuestion: true,
-          availableQuestions: availableQuestions.length > 0 ? availableQuestions : undefined
-        },
-        { status: 409 }
-      );
-    }
-
-    // If question provided, validate uniqueness of the combination
-    if (uniqueQuestion && !isUnique) {
-      // Check if same question already exists for this name combination
-      const duplicateQuestion = await query(
-        'SELECT id FROM users WHERE full_name = $1 AND mother_name = $2 AND unique_question = $3',
-        [fullName, motherName, uniqueQuestion]
-      );
-
-      if (duplicateQuestion.rows.length > 0) {
-        return NextResponse.json(
-          { 
-            error: 'هذا السؤال مستخدم بالفعل. يرجى اختيار سؤال آخر.',
-            requiresQuestion: true
-          },
-          { status: 409 }
-        );
-      }
-    }
-
-    // 3. Hash question_answer with bcrypt (if provided)
-    let questionAnswerHash = null;
-    if (questionAnswer) {
-      questionAnswerHash = await bcrypt.hash(questionAnswer.trim().toLowerCase(), 10);
-    }
-
-    // 4. INSERT INTO users
-    const result = await query(
-      `INSERT INTO users (
-        full_name, 
-        mother_name, 
-        nickname, 
-        unique_question, 
-        question_answer_hash, 
-        city, 
-        show_full_name, 
-        email, 
-        created_at, 
-        last_login
-      )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-       RETURNING id, full_name, mother_name, nickname, city, show_full_name, email, unique_question, created_at`,
-      [
-        fullName, 
-        motherName, 
-        nickname || null,
-        uniqueQuestion || null,
-        questionAnswerHash,
-        city || null, 
-        showFullName !== false, 
-        email || null
-      ]
-    );
-
-    const user = result.rows[0];
-
-    // إنشاء سجل إحصائيات للمستخدم
-    await query(
-      `INSERT INTO user_stats (user_id, total_prayers_given, total_notifications_received, interaction_rate)
-       VALUES ($1, 0, 0, 0)`,
-      [user.id]
-    );
-
-    // 5. Generate JWT (30 days)
-    const token = jwt.sign(
-      { 
-        userId: user.id, 
-        fullName: user.full_name,
-        motherName: user.mother_name,
-        nickname: user.nickname
-      },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
-    // إنشاء displayName
-    const displayName = user.nickname 
-      ? user.nickname
-      : user.show_full_name
-        ? `${user.full_name}${user.city ? ` (${user.city})` : ''}`
-        : `${user.full_name.split(' ')[0]}...`;
-
-    // 6. Return {user, token}
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        fullName: user.full_name,
-        motherName: user.mother_name,
-        nickname: user.nickname,
-        city: user.city,
-        displayName,
-        email: user.email,
-        showFullName: user.show_full_name,
-        uniqueQuestion: user.unique_question,
-        createdAt: user.created_at
-      },
-      token
-    });
-
-  } catch (error) {
-    console.error('Registration error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ أثناء التسجيل' },
-      { status: 500 }
-    );
-  }
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\prayer\collective\route.js ---
-// POST endpoint - Collective prayer (95%+ only)
-// Body: {message: optional}
-// Headers: Authorization
-
-// Logic:
-// 1. Verify JWT → get user
-// 2. Check interactionRate >= 95% → else return 403
-// 3. Check last collective prayer (1 per week)
-//    SELECT created_at FROM collective_prayers WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1
-// 4. If < 7 days → return {error: 'wait', remainingTime}
-// 5. INSERT INTO collective_prayers (user_id, message, created_at)
-// 6. Send notification to ALL active users
-// 7. Return {success: true, notificationsSent}
-
-// Notification payload:
-// {
-//   title: "دعاء جماعي من [userName] 🟢",
-//   body: "مؤمن موثق يدعو لكل المؤمنين",
-//   url: "/"
-// }
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\prayer\private\route.js ---
-// POST endpoint - Private prayer (98%+ only)
-// Body: {targetUserId, message}
-// Headers: Authorization
-
-// Logic:
-// 1. Verify JWT → get user
-// 2. Check interactionRate >= 98% → else return 403
-// 3. Check daily limit (5 private prayers per day)
-// 4. INSERT INTO private_prayers (sender_id, receiver_id, message, created_at)
-// 5. Send notification to target user
-// 6. Return {success: true}
-
-// Notification:
-// {
-//   title: "دعاء خاص من [userName] 🟡",
-//   body: "[message]",
-//   url: "/prayers/private"
-// }
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\reactions\route.js ---
-// POST endpoint - React to prayer (heart/angel/like)
-// Body: {requestId, reactionType: 'heart'|'angel'|'like'}
-// Headers: Authorization
-
-// Logic:
-// 1. Verify JWT → get userId
-// 2. Get prayer request owner
-// 3. Check if already reacted (prevent duplicates)
-// 4. INSERT INTO reactions (request_id, user_id, reactor_id, type, created_at)
-// 5. Update reactor's stats (add points for gold calculation)
-// 6. Notify request owner
-// 7. Return {success: true, totalReactions}
-
-// GET endpoint - Get reactions for request
-// Query: ?requestId=X
-// Return: {heart: 5, angel: 3, like: 10, topReactors: [{name, verificationLevel}]}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\reviews\route.js ---
-// Integration with Google Reviews
-
-// GET /api/reviews/stats
-// Return current aggregate rating from DB or Google My Business API
-
-// POST /api/reviews/request
-// Body: {userId}
-// Logic:
-// 1. Check if user has 20+ prayers
-// 2. Check if not requested review in last 30 days
-// 3. Return {shouldAskReview: true, reviewUrl: 'https://g.page/r/...'}
-
-// Table: review_requests
-// CREATE TABLE review_requests (
-//   id SERIAL PRIMARY KEY,
-//   user_id INTEGER REFERENCES users(id),
-//   requested_at TIMESTAMP DEFAULT NOW()
-// )
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\send-notification\route.js ---
-import { NextResponse } from 'next/server'
-import webpush from 'web-push'
-
-// إعداد Web Push
-webpush.setVapidDetails(
-  'mailto:haydar.cd@gmail.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-)
-
-export async function POST(request) {
-  try {
-    const { subscription, title, body } = await request.json()
-
-    const payload = JSON.stringify({
-      title: title || 'منصة الدعاء الجماعي',
-      body: body || 'لديك طلبات دعاء جديدة',
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      url: '/'
-    })
-
-    await webpush.sendNotification(subscription, payload)
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Error sending notification:', error)
-    return NextResponse.json(
-      { error: 'Failed to send notification' },
-      { status: 500 }
-    )
-  }
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\settings\banner\route.js ---
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  return NextResponse.json({
-    active: false,
-    text: '',
-    link: ''
-  });
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\tracking\share\route.js ---
-// POST /api/tracking/share - Track shares
-// Headers: Authorization
-
-// Logic:
-// 1. Verify JWT → get userId
-// 2. Check if already shared today (prevent spam)
-//    SELECT COUNT(*) FROM shares WHERE user_id=$1 AND created_at > CURRENT_DATE
-// 3. If > 5 today → return (ignore duplicate shares)
-// 4. INSERT INTO shares (user_id, created_at)
-// 5. Update user stats (shares count for gold verification)
-// 6. Return {success: true}
-
-// Table: shares
-// CREATE TABLE shares (
-//   id SERIAL PRIMARY KEY,
-//   user_id INTEGER REFERENCES users(id),
-//   created_at TIMESTAMP DEFAULT NOW()
-// )
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\users\active\route.js ---
-// GET endpoint - Get active users for private prayer
-// Headers: Authorization
-
-// Logic:
-// 1. SELECT id, full_name, nickname, verification_level 
-//    FROM users 
-//    WHERE last_login > NOW() - INTERVAL '7 days'
-//    AND id != $currentUserId
-//    ORDER BY interaction_rate DESC
-//    LIMIT 50
-
-// Return: [{id, displayName, verificationLevel}]
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\users\stats\route.js ---
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// دالة للتحقق من الـ token
-function verifyToken(request) {
-  const authHeader = request.headers.get('authorization');
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
-    return null;
-  }
-}
-
-// حساب معدل التفاعل
-function calculateInteractionRate(prayersGiven, notificationsReceived) {
-  if (notificationsReceived === 0) return 0;
-  return Math.round((prayersGiven / notificationsReceived) * 100);
-}
-
-// تحديد مستوى التوثيق
-function getVerificationLevel(interactionRate) {
-  if (interactionRate >= 98) {
-    return {
-      name: 'GOLD',
-      color: 'amber',
-      icon: '👑',
-      threshold: 98
-    };
-  } else if (interactionRate >= 90) {
-    return {
-      name: 'GREEN',
-      color: 'emerald',
-      icon: '✓✓',
-      threshold: 90
-    };
-  } else if (interactionRate >= 80) {
-    return {
-      name: 'BLUE',
-      color: 'blue',
-      icon: '✓',
-      threshold: 80
-    };
-  } else {
-    return {
-      name: 'NONE',
-      color: 'stone',
-      icon: '',
-      threshold: 0
-    };
-  }
-}
-
-// الميزات المفتوحة حسب المستوى
-function getUnlockedFeatures(interactionRate) {
-  const features = [];
-  
-  if (interactionRate >= 80) {
-    features.push('priority_display'); // ظهور أولوي في القوائم
-    features.push('blue_badge'); // شارة زرقاء
-  }
-  
-  if (interactionRate >= 90) {
-    features.push('green_badge'); // شارة خضراء مزدوجة
-    features.push('top_priority'); // أولوية عليا
-  }
-  
-  if (interactionRate >= 98) {
-    features.push('gold_badge'); // شارة ذهبية
-    features.push('max_priority'); // أعلى أولوية
-    features.push('special_reactions'); // ردود خاصة
-  }
-  
-  return features;
-}
-
-// حساب المستوى القادم
-function calculateNextLevel(rate) {
-  if (rate < 80) {
-    return {
-      level: 'BLUE',
-      levelName: 'التوثيق الأزرق',
-      remaining: 80 - rate,
-      icon: '✓',
-      color: 'blue'
-    };
-  }
-  if (rate < 90) {
-    return {
-      level: 'GREEN',
-      levelName: 'التوثيق الأخضر',
-      remaining: 90 - rate,
-      icon: '✓✓',
-      color: 'emerald'
-    };
-  }
-  if (rate < 98) {
-    return {
-      level: 'GOLD',
-      levelName: 'التوثيق الذهبي',
-      remaining: 98 - rate,
-      icon: '👑',
-      color: 'amber'
-    };
-  }
-  return {
-    level: 'MAX',
-    levelName: 'المستوى الأقصى',
-    remaining: 0,
-    icon: '👑',
-    color: 'amber'
-  };
-}
-
-// GET - جلب إحصائيات المستخدم
-export async function GET(request) {
-  try {
-    // التحقق من الـ token
-    const decoded = verifyToken(request);
-    
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'غير مصرح. الرجاء تسجيل الدخول.' },
-        { status: 401 }
-      );
-    }
-
-    const userId = decoded.userId;
-
-    // جلب إحصائيات المستخدم
-    const statsResult = await query(
-      `SELECT 
-        total_prayers_given,
-        total_notifications_received,
-        interaction_rate,
-        last_prayer_date
-       FROM user_stats 
-       WHERE user_id = $1`,
-      [userId]
-    );
-
-    if (statsResult.rows.length === 0) {
-      // إنشاء سجل إحصائيات إذا لم يكن موجوداً
-      await query(
-        `INSERT INTO user_stats (user_id, total_prayers_given, total_notifications_received, interaction_rate)
-         VALUES ($1, 0, 0, 0)`,
-        [userId]
-      );
-      
-      return NextResponse.json({
-        success: true,
-        stats: {
-          totalPrayersGiven: 0,
-          totalNotificationsReceived: 0,
-          interactionRate: 0,
-          lastPrayerDate: null,
-          prayersThisMonth: 0,
-          prayersReceivedCount: 0,
-          answeredPrayers: 0,
-          verificationLevel: {
-            name: 'NONE',
-            color: 'stone',
-            icon: '',
-            threshold: 0
-          },
-          unlockedFeatures: [],
-          nextLevel: {
-            level: 'BLUE',
-            levelName: 'التوثيق الأزرق',
-            remaining: 80,
-            icon: '✓',
-            color: 'blue'
-          }
-        }
-      });
-    }
-
-    const stats = statsResult.rows[0];
-
-    // حساب دعوات هذا الشهر
-    const monthPrayersResult = await query(
-      `SELECT COUNT(*) as count
-       FROM prayers
-       WHERE user_id = $1 
-       AND created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
-      [userId]
-    );
-
-    // حساب عدد من دعوا للمستخدم
-    const receivedPrayersResult = await query(
-      `SELECT COUNT(DISTINCT pr.user_id) as count
-       FROM prayer_requests pr
-       JOIN prayers p ON pr.id = p.request_id
-       WHERE pr.requester_id = $1`,
-      [userId]
-    );
-
-    // حساب الطلبات المستجابة
-    const answeredResult = await query(
-      `SELECT COUNT(*) as count
-       FROM prayer_requests
-       WHERE requester_id = $1 AND status = 'answered'`,
-      [userId]
-    );
-
-    // حساب معدل التفاعل والتوثيق
-    const interactionRate = calculateInteractionRate(
-      parseInt(stats.total_prayers_given),
-      parseInt(stats.total_notifications_received)
-    );
-
-    const verificationLevel = getVerificationLevel(interactionRate);
-    const unlockedFeatures = getUnlockedFeatures(interactionRate);
-    const nextLevel = calculateNextLevel(interactionRate);
-
-    return NextResponse.json({
-      success: true,
-      stats: {
-        totalPrayersGiven: parseInt(stats.total_prayers_given),
-        totalNotificationsReceived: parseInt(stats.total_notifications_received),
-        interactionRate,
-        lastPrayerDate: stats.last_prayer_date,
-        prayersThisMonth: parseInt(monthPrayersResult.rows[0].count),
-        prayersReceivedCount: parseInt(receivedPrayersResult.rows[0].count),
-        answeredPrayers: parseInt(answeredResult.rows[0].count),
-        verificationLevel: {
-          name: verificationLevel.name,
-          color: verificationLevel.color,
-          icon: verificationLevel.icon,
-          threshold: verificationLevel.threshold
-        },
-        unlockedFeatures,
-        nextLevel
-      }
-    });
-
-  } catch (error) {
-    console.error('Stats fetch error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ أثناء جلب الإحصائيات' },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - تحديث إحصائيات المستخدم (عند القيام بدعاء جديد)
-export async function POST(request) {
-  try {
-    // التحقق من الـ token
-    const decoded = verifyToken(request);
-    
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'غير مصرح. الرجاء تسجيل الدخول.' },
-        { status: 401 }
-      );
-    }
-
-    const userId = decoded.userId;
-
-    // تحديث العداد
-    await query(
-      `UPDATE user_stats 
-       SET 
-         total_prayers_given = total_prayers_given + 1,
-         last_prayer_date = NOW(),
-         interaction_rate = CASE 
-           WHEN total_notifications_received > 0 
-           THEN (total_prayers_given + 1)::float / total_notifications_received * 100
-           ELSE 0
-         END
-       WHERE user_id = $1`,
-      [userId]
-    );
-
-    // جلب الإحصائيات المحدثة
-    const updatedStats = await query(
-      `SELECT total_prayers_given, total_notifications_received, interaction_rate 
-       FROM user_stats 
-       WHERE user_id = $1`,
-      [userId]
-    );
-
-    const stats = updatedStats.rows[0];
-    const interactionRate = calculateInteractionRate(
-      parseInt(stats.total_prayers_given),
-      parseInt(stats.total_notifications_received)
-    );
-
-    const verificationLevel = getVerificationLevel(interactionRate);
-    const unlockedFeatures = getUnlockedFeatures(interactionRate);
-    const nextLevel = calculateNextLevel(interactionRate);
-
-    return NextResponse.json({
-      success: true,
-      stats: {
-        totalPrayersGiven: parseInt(stats.total_prayers_given),
-        interactionRate,
-        verificationLevel: {
-          name: verificationLevel.name,
-          color: verificationLevel.color,
-          icon: verificationLevel.icon,
-          threshold: verificationLevel.threshold
-        },
-        unlockedFeatures,
-        nextLevel
-      }
-    });
-
-  } catch (error) {
-    console.error('Stats update error:', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ أثناء تحديث الإحصائيات' },
-      { status: 500 }
-    );
-  }
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\app\api\users\top-weekly\route.js ---
-// GET endpoint - Get top interactor of the week
-
-// Logic:
-// 1. SELECT user_id, COUNT(*) as prayer_count
-//    FROM prayers
-//    WHERE created_at > NOW() - INTERVAL '7 days'
-//    GROUP BY user_id
-//    ORDER BY prayer_count DESC
-//    LIMIT 1
-
-// 2. JOIN with users to get name + verification
-
-// Return: {
-//   id, 
-//   displayName, 
-//   verificationLevel, 
-//   prayersThisWeek,
-//   showName (if user opted in)
-// }
-
-=== ALL PAGE COMPONENTS ===
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\AboutPage.js ---
-// ===============================================
-// ℹ️ صفحة من نحن (About Page)
-// قصة المنصة + نموذج التواصل
-// ===============================================
-
-import { useState } from 'react';
-import { Mail } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
-
-export default function AboutPage({ user, onNavigate, onEditProfile }) {
-  const [contactMessage, setContactMessage] = useState('');
-
-  const handleSendMessage = () => {
-    if (!contactMessage.trim()) {
-      alert('الرجاء كتابة رسالة');
-      return;
-    }
-    // TODO: ربط بـ API إرسال البريد
-    alert('تم إرسال رسالتك بنجاح! سنرد عليك قريباً إن شاء الله');
-    setContactMessage('');
-  };
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
-      
-      {/* 📱 القائمة */}
-      <MenuBar 
-        user={user}
-        currentPage="about"
-        onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
-      />
-      
-      {/* 📄 المحتوى */}
-      <div className="flex-1 p-4">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg border border-stone-200 p-8">
-          
-          {/* 💚 القصة */}
-          <div className="text-center mb-6">
-            <div className="text-4xl mb-4">💚</div>
-            <h2 className="text-2xl font-semibold text-stone-800 mb-6">من نحن</h2>
-          </div>
-          
-          <div className="space-y-4 text-stone-700 leading-relaxed">
-            <p>ذات يوم، مررت بمحنة صعبة...</p>
-            
-            <p>كل ما كنت أحتاجه هو دعوة صادقة من قلب مؤمن</p>
-            
-            <p>
-              الدعاء غيّر حياتي بإذن الله، وأيقنت أن الله يريدنا أن ندعوه وأن ندعو لبعضنا البعض
-            </p>
-            
-            {/* 📖 الآية */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 my-6">
-              <p className="text-center" style={{fontFamily: 'Traditional Arabic, serif'}}>
-                ﴿ ادْعُونِي أَسْتَجِبْ لَكُمْ ﴾
-              </p>
-            </div>
-            
-            <p>
-              الدعاء يغير مسارات القدر بإذن الله، وقد يكون دعاؤك سبب فرج إنسان
-            </p>
-            
-            <p>أتمنى أن تتغير حياة الجميع للأحسن، بإذن الله 🤲</p>
-          </div>
-
-          {/* ✉️ نموذج التواصل */}
-          <div className="mt-8 pt-8 border-t border-stone-200">
-            <h3 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
-              <Mail className="w-5 h-5" />
-              تواصل معنا
-            </h3>
-            
-            <textarea
-              value={contactMessage}
-              onChange={(e) => setContactMessage(e.target.value)}
-              placeholder="اكتب رسالتك هنا..."
-              rows="4"
-              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none"
-            />
-            
-            <button
-              onClick={handleSendMessage}
-              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium transition-colors"
-            >
-              إرسال الرسالة إن شاء الله
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\AchievementsPage.js ---
-// ===============================================
-// 🏆 صفحة الإنجازات (Achievements Page)
-// عرض التقدم والمستويات
-// ===============================================
-
-import { useState, useEffect } from 'react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
-import { achievements } from '../constants/messages';
-
-// مستويات التوثيق
-const VERIFICATION_LEVELS = {
-  BLUE: {
-    name: 'التوثيق الأزرق',
-    threshold: 80,
-    icon: '✓',
-    color: 'blue'
-  },
-  GREEN: {
-    name: 'التوثيق الأخضر',
-    threshold: 90,
-    icon: '✓✓',
-    color: 'emerald'
-  },
-  GOLD: {
-    name: 'التوثيق الذهبي',
-    threshold: 98,
-    icon: '👑',
-    color: 'amber'
-  }
-};
-
-export default function AchievementsPage({ user, onNavigate, onEditProfile, onLogout }) {
-  // 📊 حالة الإحصائيات
-  const [userStats, setUserStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // جلب بيانات المستخدم من API
-  useEffect(() => {
-    if (user) {
-      const token = localStorage.getItem('token');
-      
-      fetch('/api/users/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            setUserStats(data.stats);
-          }
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error('Error fetching stats:', err);
-          setLoading(false);
-        });
-    }
-  }, [user]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <p className="text-stone-600">جاري التحميل...</p>
-      </div>
-    );
-  }
-
-  const userPrayerCount = userStats?.prayersThisMonth || 0;
-  
-  // 🎯 الإنجاز القادم
-  const nextAchievement = achievements.find(a => a.count > userPrayerCount) || achievements[achievements.length - 1];
-  const remaining = nextAchievement.count - userPrayerCount;
-  const progress = (userPrayerCount / nextAchievement.count) * 100;
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
-      
-      {/* 📱 القائمة */}
-      <MenuBar 
-        user={user}
-        currentPage="achievements"
-        onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
-        onLogout={onLogout}
-      />
-      
-      {/* 📄 المحتوى */}
-      <div className="flex-1 p-4">
-        <div className="max-w-2xl mx-auto space-y-4">
-          
-          {/* 📊 العداد التحفيزي */}
-          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg border border-emerald-200 p-6">
-            <div className="text-center mb-4">
-              <div className="text-4xl font-bold text-emerald-700 mb-2">
-                {userPrayerCount}
-              </div>
-              <p className="text-stone-600">دعاء هذا الشهر</p>
-            </div>
-
-            {/* شريط التقدم */}
-            <div className="mb-4">
-              <div className="w-full bg-emerald-200 rounded-full h-3 overflow-hidden">
-                <div 
-                  className="bg-emerald-600 h-full transition-all duration-500"
-                  style={{width: `${Math.min(progress, 100)}%`}}
-                ></div>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm text-stone-600 mb-2">
-                باقي <span className="font-bold text-emerald-700">{remaining}</span> {remaining === 1 ? 'دعاء' : 'دعوات'} لتصل إلى:
-              </p>
-              <p className="text-emerald-700 font-semibold">
-                {nextAchievement.icon} {nextAchievement.title}
-              </p>
-            </div>
-          </div>
-
-          {/* 🏆 شارات التوثيق */}
-          {userStats && (
-            <div className="bg-white p-6 rounded-lg border border-stone-200">
-              <h3 className="text-lg font-bold text-stone-800 mb-4">
-                شارات التوثيق
-              </h3>
-              
-              <div className="grid grid-cols-1 gap-4">
-                {Object.values(VERIFICATION_LEVELS).filter(l => l.threshold > 0).map(level => {
-                  const isUnlocked = userStats.interactionRate >= level.threshold;
-                  
-                  return (
-                    <div 
-                      key={level.name} 
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        isUnlocked 
-                          ? 'border-emerald-500 bg-emerald-50' 
-                          : 'border-stone-200 bg-stone-50 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-bold text-stone-800">{level.name}</h4>
-                          <p className="text-sm text-stone-600">معدل تفاعل {level.threshold}%+</p>
-                        </div>
-                        <div className="text-3xl">{level.icon}</div>
-                      </div>
-                      {isUnlocked && (
-                        <p className="text-emerald-600 text-sm mt-2">✓ تم فتح هذه الشارة</p>
-                      )}
-                      {!isUnlocked && (
-                        <p className="text-stone-500 text-sm mt-2">
-                          باقي {level.threshold - userStats.interactionRate}% للفتح
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 🏅 قائمة الإنجازات */}
-          <div className="bg-white rounded-lg border border-stone-200 p-6">
-            <h3 className="font-semibold text-stone-800 mb-4 text-center">
-              مستويات الإنجازات
-            </h3>
-            <div className="space-y-3">
-              {achievements.map((achievement, idx) => {
-                const isCompleted = userPrayerCount >= achievement.count;
-                const isCurrent = achievement.count === nextAchievement.count;
-                
-                return (
-                  <div 
-                    key={idx}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      isCompleted 
-                        ? 'bg-emerald-50 border-emerald-500' 
-                        : isCurrent
-                          ? 'bg-amber-50 border-amber-500'
-                          : 'bg-stone-50 border-stone-200'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="text-2xl">{achievement.icon}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-stone-800">
-                            {achievement.count}
-                          </span>
-                          {isCompleted && <span className="text-emerald-600">✓</span>}
-                          {isCurrent && <span className="text-amber-600">← الهدف الحالي</span>}
-                        </div>
-                        <p className="text-sm text-stone-600">{achievement.title}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 💬 رسالة تحفيزية */}
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg border border-amber-200 p-6 text-center">
-            <p className="text-stone-700 leading-relaxed">
-              "كل دعاء تدعوه يُكتب لك<br/>وتدعو لك الملائكة بمثله إن شاء الله"
-            </p>
-            <div className="text-3xl mt-3">🤲</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\FAQPage.js ---
-// ===============================================
-// ❓ صفحة الأسئلة الشائعة (FAQ Page)
-// الأسئلة والأجوبة الشائعة
-// ===============================================
-
-import { HelpCircle } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
-
-export default function FAQPage({ user, onNavigate, onEditProfile }) {
-  // 📋 الأسئلة الشائعة
-  const faqs = [
-    {
-      q: 'كيف يعمل الموقع؟',
-      a: 'تقوم بالتسجيل باسمك واسم والدتك، ثم يمكنك طلب الدعاء أو الدعاء للآخرين. ستصلك إشعارات كل 30 دقيقة عندما يطلب أحد الدعاء إن شاء الله.'
-    },
-    {
-      q: 'لماذا نطلب اسم الأم؟',
-      a: 'الدعاء بالاسم واسم الأم له قوة روحانية خاصة في كل الأديان، وهو أدق في التعريف بالشخص.'
-    },
-    {
-      q: 'هل أحتاج لكتابة تفاصيل حاجتي؟',
-      a: 'لا، احتفظ بحاجتك في قلبك. الله يعلم ما تريد، والمؤمنون يدعون لك بالخير العام.'
-    },
-    {
-      q: 'كم مرة يمكنني طلب الدعاء؟',
-      a: 'يمكنك طلب الدعاء في أي وقت تحتاجه. ننصح بالتباعد بين الطلبات لإعطاء الفرصة للمؤمنين للدعاء لك.'
-    },
-    {
-      q: 'كيف أعرف أن دعائي استُجيب؟',
-      a: 'بعد 24 ساعة من طلبك، سنسألك عن حالتك. إذا تيسرت حاجتك، سيتم إعلام كل من دعا لك بالبشرى إن شاء الله.'
-    },
-    {
-      q: 'هل الموقع مجاني؟',
-      a: 'نعم تماماً. المنصة مجانية للجميع. هدفنا نشر الخير والدعاء المشترك.'
-    },
-    {
-      q: 'كيف أثبت التطبيق على موبايلي؟',
-      a: 'عند زيارة الموقع، سيظهر لك خيار "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية" في متصفحك.'
-    },
-    {
-      q: 'هل معلوماتي آمنة؟',
-      a: 'نعم، نحن نحترم خصوصيتك. فقط الاسم واسم الأم يظهران للمؤمنين، وليس لدينا بياناتك الشخصية الأخرى.'
-    },
-    {
-      q: 'هل يمكنني الدعاء لمتوفى؟',
-      a: 'نعم، يوجد زر خاص للدعاء للمتوفين. يمكنك إدخال اسم المتوفى واسم والدته وصلة القرابة.'
-    },
-    {
-      q: 'ماذا أفعل إذا لم تصلني إشعارات؟',
-      a: 'تأكد من تثبيت التطبيق على شاشتك الرئيسية والسماح بالإشعارات في إعدادات المتصفح.'
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
-      
-      {/* 📱 القائمة */}
-      <MenuBar 
-        user={user}
-        currentPage="faq"
-        onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
-      />
-      
-      {/* 📄 المحتوى */}
-      <div className="flex-1 p-4">
-        <div className="max-w-2xl mx-auto space-y-3">
-          {faqs.map((faq, idx) => (
-            <div key={idx} className="bg-white rounded-lg border border-stone-200 p-5">
-              <h3 className="font-semibold text-stone-800 mb-2 flex items-start gap-2">
-                <HelpCircle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                {faq.q}
-              </h3>
-              <p className="text-stone-600 text-sm leading-relaxed mr-7">
-                {faq.a}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\HomePage.js ---
-// ===============================================
-// 🏡 الصفحة الرئيسية (Home Page)
-// عرض طلبات الدعاء + إرسال طلب جديد
-// ===============================================
-
-import { useState, useEffect } from 'react';
-import { Share2, Send, X } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
-import CountdownTimer from '../shared/CountdownTimer';
-import VerificationBadge from '../shared/VerificationBadge';
-import ReactionButtons from '../shared/ReactionButtons';
-import TopWeeklyUser from '../shared/TopWeeklyUser';
-import InstallPrompt from '../shared/InstallPrompt';
-import ShareButton from '../shared/ShareButton';
-import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
-
-export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) {
-  // 🎲 رسالة تشجيعية عشوائية
-  const [randomMessage] = useState(
-    encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)]
-  );
-
-  // ⏰ حدود الطلبات (Time Limits)
-  const [prayerLimit, setPrayerLimit] = useState({
-    canRequest: true,
-    remainingSeconds: 0,
-    nextAllowedAt: null
-  });
-
-  const [deceasedLimit, setDeceasedLimit] = useState({
-    canRequest: true,
-    remainingSeconds: 0,
-    nextAllowedAt: null
-  });
-
-  // 📋 طلبات الدعاء (بيانات وهمية)
-  const [requests] = useState([
-    {
-      id: 1,
-      userId: 123,
-      userName: 'أحمد بن سارة',
-      type: 'need',
-      timestamp: new Date(Date.now() - 5 * 60000),
-      prayerCount: 12,
-      prayed: false,
-      verificationLevel: {
-        name: 'BLUE',
-        color: 'blue',
-        icon: '✓',
-        threshold: 80
-      }
-    },
-    {
-      id: 2,
-      userId: 456,
-      userName: 'ماريا بنت كاثرين',
-      type: 'need',
-      timestamp: new Date(Date.now() - 15 * 60000),
-      prayerCount: 8,
-      prayed: false,
-      verificationLevel: {
-        name: 'GREEN',
-        color: 'emerald',
-        icon: '✓✓',
-        threshold: 90
-      }
-    },
-    {
-      id: 3,
-      userId: 789,
-      deceasedName: 'يوسف بن مريم',
-      relation: 'أب',
-      type: 'deceased',
-      timestamp: new Date(Date.now() - 20 * 60000),
-      prayerCount: 15,
-      prayed: false,
-      verificationLevel: null
-    }
-  ]);
-
-  // 🕊️ نموذج الدعاء للمتوفى
-  const [showDeceasedForm, setShowDeceasedForm] = useState(false);
-  const [deceasedForm, setDeceasedForm] = useState({
-    fullName: '',
-    motherName: '',
-    relation: ''
-  });
-
-  // 🌟 ميزات التوثيق المتقدم
-  const [stats, setStats] = useState(null);
-  const [canCollective, setCanCollective] = useState(false);
-  const [canPrivate, setCanPrivate] = useState(false);
-  const [selectedUser, setSelectedUser] = useState('');
-  const [activeUsers] = useState([
-    { id: 1, displayName: 'أحمد بن سارة', verificationLevel: { icon: '✓' } },
-    { id: 2, displayName: 'ماريا بنت كاثرين', verificationLevel: { icon: '✓✓' } },
-    { id: 3, displayName: 'فاطمة بنت علي', verificationLevel: { icon: '👑' } }
-  ]);
-
-  // 🏆 أفضل مستخدم أسبوعياً
-  const [topWeeklyUser, setTopWeeklyUser] = useState(null);
-
-  // ⏰ التحقق من حدود الطلبات عند التحميل
-  useEffect(() => {
-    if (user) {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      fetch('/api/prayer-request/check-limit', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setPrayerLimit({
-            canRequest: data.canRequestPrayer,
-            remainingSeconds: data.remainingSeconds?.prayer || 0,
-            nextAllowedAt: data.nextPrayerAllowedAt
-          });
-          setDeceasedLimit({
-            canRequest: data.canRequestDeceased,
-            remainingSeconds: data.remainingSeconds?.deceased || 0,
-            nextAllowedAt: data.nextDeceasedAllowedAt
-          });
-        })
-        .catch(err => console.error('Error checking limits:', err));
-    }
-  }, [user]);
-
-  // 🌟 جلب بيانات التوثيق والميزات
-  useEffect(() => {
-    if (user) {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      fetch('/api/users/stats', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            setStats(data.stats);
-            setCanCollective(data.stats.unlockedFeatures?.includes('collective_prayer') || false);
-            setCanPrivate(data.stats.unlockedFeatures?.includes('private_prayer') || false);
-          }
-        })
-        .catch(err => console.error('Error fetching stats:', err));
-    }
-  }, [user]);
-
-  // 🏆 جلب أفضل مستخدم أسبوعياً
-  useEffect(() => {
-    fetch('/api/users/top-weekly')
-      .then(res => res.json())
-      .then(data => setTopWeeklyUser(data))
-      .catch(err => console.error('Error fetching top weekly user:', err));
-  }, []);
-
-  // 🕐 حساب الوقت
-  const getTimeAgo = (timestamp) => {
-    const mins = Math.floor((Date.now() - timestamp) / 60000);
-    if (mins < 1) return 'الآن';
-    if (mins === 1) return 'منذ دقيقة';
-    if (mins < 60) return `منذ ${mins} دقيقة`;
-    const hours = Math.floor(mins / 60);
-    if (hours === 1) return 'منذ ساعة';
-    if (hours < 24) return `منذ ${hours} ساعة`;
-    const days = Math.floor(hours / 24);
-    return `منذ ${days} يوم`;
-  };
-
-  const handleRequestPrayer = async () => {
-    // TODO: ربط بـ API
-    alert('تم إرسال طلبك! سيصل إشعار للمؤمنين خلال 30 دقيقة إن شاء الله');
-  };
-
-  const handleDeceasedPrayer = () => {
-    if (!deceasedForm.fullName || !deceasedForm.motherName) {
-      alert('الرجاء إدخال الاسم الكامل واسم الأم للمتوفى');
-      return;
-    }
-    // TODO: ربط بـ API
-    alert('تم إرسال طلب الدعاء للمتوفى إن شاء الله');
-    setShowDeceasedForm(false);
-    setDeceasedForm({ fullName: '', motherName: '', relation: '' });
-  };
-
-  const handleReact = async (requestId, reactionType) => {
-    // TODO: ربط بـ API
-    console.log('React:', requestId, reactionType);
-    alert(`تم إرسال رد الفعل: ${reactionType}`);
-  };
-
-  const handleCollectivePrayer = async () => {
-    // TODO: ربط بـ API
-    alert('تم إرسال دعاءك لكل المؤمنين! جزاك الله خيراً 🌍');
-  };
-
-  const handlePrivatePrayer = async () => {
-    if (!selectedUser) {
-      alert('الرجاء اختيار شخص للدعاء له');
-      return;
-    }
-    // TODO: ربط بـ API
-    alert('تم إرسال دعاء خاص إن شاء الله ⭐');
-    setSelectedUser('');
-  };
-
-  return (
-    <div className="min-h-screen bg-stone-50 pb-20">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
-      
-      {/* 📱 القائمة */}
-      <MenuBar 
-        user={user}
-        currentPage="home"
-        onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
-        onLogout={onLogout}
-      />
-
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        
-        {/* 👥 عداد المستخدمين */}
-        <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200 rounded-lg p-4 text-center">
-          <p className="text-emerald-700 font-semibold text-lg">
-            🌍 انضم إلى {TOTAL_USERS.toLocaleString()} مؤمن
-          </p>
-          <p className="text-emerald-600 text-sm">من حول العالم</p>
-        </div>
-
-        {/* 💬 رسالة تشجيعية */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <p className="text-stone-700 text-sm leading-relaxed whitespace-pre-line text-center">
-            {randomMessage}
-          </p>
-        </div>
-
-        {/* 🚀 أزرار الطلب */}
-        <div className="grid grid-cols-1 gap-4">
-          {/* زر طلب الدعاء */}
-          {prayerLimit.canRequest ? (
-            <button
-              onClick={handleRequestPrayer}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white p-6 rounded-lg transition-colors"
-            >
-              <div className="text-center">
-                <div className="text-3xl mb-2">🤲</div>
-                <h3 className="text-lg font-semibold mb-2">احتاج دعاءكم</h3>
-                <p className="text-sm opacity-90">
-                  احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
-                </p>
-              </div>
-            </button>
-          ) : (
-            <div className="bg-emerald-600 opacity-60 text-white p-6 rounded-lg">
-              <div className="text-center">
-                <div className="text-3xl mb-2">🤲</div>
-                <h3 className="text-lg font-semibold mb-2">احتاج دعاءكم</h3>
-                <p className="text-sm opacity-90 mb-3">
-                  احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
-                </p>
-                <CountdownTimer 
-                  targetTimestamp={prayerLimit.nextAllowedAt}
-                  onComplete={() => setPrayerLimit({...prayerLimit, canRequest: true})}
-                  label="يمكنك طلب دعاء جديد بعد"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* زر الدعاء للمتوفى */}
-          {deceasedLimit.canRequest ? (
-            <button
-              onClick={() => setShowDeceasedForm(true)}
-              className="bg-stone-600 hover:bg-stone-700 text-white p-6 rounded-lg transition-colors"
-            >
-              <div className="text-center">
-                <div className="text-3xl mb-2">🕊️</div>
-                <h3 className="text-lg font-semibold mb-2">ادعوا لمتوفٍ عزيز</h3>
-                <p className="text-sm opacity-90">
-                  ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
-                </p>
-              </div>
-            </button>
-          ) : (
-            <div className="bg-stone-600 opacity-60 text-white p-6 rounded-lg">
-              <div className="text-center">
-                <div className="text-3xl mb-2">🕊️</div>
-                <h3 className="text-lg font-semibold mb-2">ادعوا لمتوفٍ عزيز</h3>
-                <p className="text-sm opacity-90 mb-3">
-                  ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
-                </p>
-                <CountdownTimer 
-                  targetTimestamp={deceasedLimit.nextAllowedAt}
-                  onComplete={() => setDeceasedLimit({...deceasedLimit, canRequest: true})}
-                  label="يمكنك طلب دعاء جديد بعد"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 🕊️ نموذج المتوفى */}
-        {showDeceasedForm && (
-          <div className="bg-white p-6 rounded-lg border border-stone-200">
-            <h3 className="text-lg font-semibold text-stone-800 mb-4 text-center">
-              الدعاء لمن فارقنا
-            </h3>
-            
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={deceasedForm.fullName}
-                onChange={(e) => setDeceasedForm({...deceasedForm, fullName: e.target.value})}
-                placeholder="الاسم الكامل للمتوفى"
-                className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-              />
-              
-              <input
-                type="text"
-                value={deceasedForm.motherName}
-                onChange={(e) => setDeceasedForm({...deceasedForm, motherName: e.target.value})}
-                placeholder="اسم والدة المتوفى"
-                className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-              />
-              
-              <div>
-                <label className="block text-stone-700 font-medium mb-2 text-sm">
-                  صلة القرابة (اختياري)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['أب', 'أم', 'أخ', 'أخت', 'صديق', 'قريب'].map(rel => (
-                    <button
-                      key={rel}
-                      onClick={() => setDeceasedForm({...deceasedForm, relation: rel})}
-                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                        deceasedForm.relation === rel
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                      }`}
-                    >
-                      {rel}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={handleDeceasedPrayer}
-                  className="flex-1 bg-stone-600 hover:bg-stone-700 text-white py-2.5 rounded-lg font-medium transition-colors"
-                >
-                  إرسال طلب الدعاء
-                </button>
-                <button
-                  onClick={() => setShowDeceasedForm(false)}
-                  className="px-6 bg-stone-200 hover:bg-stone-300 text-stone-700 py-2.5 rounded-lg font-medium transition-colors"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 📊 إحصائية شخصية */}
-        <div className="bg-white p-5 rounded-lg border border-stone-200 text-center">
-          <p className="text-stone-600 text-sm mb-1">دعا لك اليوم</p>
-          <p className="text-3xl font-semibold text-emerald-600">24</p>
-          <p className="text-stone-500 text-sm">مؤمن</p>
-        </div>
-
-        {/* 🏆 أفضل مستخدم أسبوعياً */}
-        {topWeeklyUser && (
-          <TopWeeklyUser topUser={topWeeklyUser} />
-        )}
-
-        {/* 🌟 ميزات التوثيق المتقدم */}
-        {canCollective && (
-          <button
-            onClick={handleCollectivePrayer}
-            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-6 rounded-lg transition-all hover:shadow-lg"
-          >
-            <div className="text-center">
-              <div className="text-3xl mb-2">🌍</div>
-              <h3 className="text-lg font-bold mb-1">ادعُ لكل المؤمنين</h3>
-              <p className="text-sm opacity-90">ميزة التوثيق المتقدم 🟢</p>
-            </div>
-          </button>
-        )}
-
-        {canPrivate && (
-          <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6 rounded-lg">
-            <div className="text-center mb-3">
-              <div className="text-3xl mb-2">⭐</div>
-              <h3 className="text-lg font-bold">دعاء خاص</h3>
-              <p className="text-sm opacity-90 mb-3">ميزة التوثيق الذهبي 👑</p>
-            </div>
-            <select 
-              value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
-              className="w-full p-3 rounded-lg text-stone-800 border-0 focus:ring-2 focus:ring-amber-300"
-            >
-              <option value="">اختر شخصاً...</option>
-              {activeUsers.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.displayName} {u.verificationLevel?.icon}
-                </option>
-              ))}
-            </select>
-            <button 
-              onClick={handlePrivatePrayer} 
-              className="mt-3 w-full bg-white text-amber-600 py-2.5 rounded-lg font-semibold hover:bg-amber-50 transition-colors"
-            >
-              إرسال دعاء خاص
-            </button>
-          </div>
-        )}
-
-        {/* 🤲 من يطلب دعاءنا */}
-        <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
-          <div className="bg-emerald-600 p-4 border-b border-emerald-700">
-            <h3 className="text-white font-semibold text-center">
-              من يطلب دعاءنا الآن
-            </h3>
-          </div>
-          
-          <div className="divide-y divide-stone-100">
-            {requests.map(request => (
-              <div key={request.id} className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">{request.type === 'deceased' ? '🕊️' : '🤲'}</span>
-                      <h4 className="font-semibold text-stone-800">
-                        {request.type === 'deceased' 
-                          ? `${request.deceasedName}${request.relation ? ` (${request.relation})` : ''}`
-                          : request.userName
-                        }
-                      </h4>
-                      {request.verificationLevel && (
-                        <VerificationBadge level={request.verificationLevel} size="sm" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-stone-600 mb-2">
-                      <span>{getTimeAgo(request.timestamp)}</span>
-                      <span>•</span>
-                      <span>دعا له {request.prayerCount}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {!request.prayed && (
-                  <button
-                    onClick={() => alert('سيتم ربطه بـ API الدعاء')}
-                    className={`w-full py-2.5 rounded-lg font-medium transition-colors ${
-                      request.type === 'deceased'
-                        ? 'bg-stone-600 hover:bg-stone-700 text-white'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    }`}
-                  >
-                    خذ لحظة وادعُ {request.type === 'deceased' ? 'له' : `لـ ${request.userName.split(' ')[0]}`} 🤲
-                  </button>
-                )}
-
-                {/* Show reactions if user is request owner */}
-                {request.userId === user?.id && (
-                  <div className="mt-4 pt-4 border-t border-stone-200">
-                    <p className="text-sm text-stone-600 mb-2">
-                      {request.prayerCount} شخص دعا لك
-                    </p>
-                    <ReactionButtons 
-                      requestId={request.id}
-                      currentUserReaction={null}
-                      onReact={handleReact}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 🎉 بشائر اليوم */}
-        <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
-          <div className="bg-amber-500 p-4 border-b border-amber-600">
-            <h3 className="text-white font-semibold text-center">بشائر اليوم</h3>
-          </div>
-          
-          <div className="p-5 space-y-3">
-            {blessingsExample.map((blessing, idx) => (
-              <div key={idx} className="flex items-center justify-between bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                <div>
-                  <p className="font-semibold text-stone-800">✓ {blessing.name}</p>
-                  <p className="text-sm text-stone-600">تيسرت حاجته إن شاء الله</p>
-                </div>
-                <p className="text-sm text-stone-600">دعا له {blessing.count}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 📤 زر المشاركة */}
-        <ShareButton 
-          title="منصة الدعاء الجماعي"
-          text="ادعُ واطلب الدعاء من آلاف المؤمنين حول العالم 🤲"
-          url="https://yojeeb.com"
-        />
-
-        {/* 👤 Footer */}
-        <div className="text-center text-sm text-stone-600 py-6 border-t border-stone-200">
-          <p className="mb-2">منصة الدعاء الجماعي © 2025</p>
-          <p>فكرة وتطوير: <span className="text-emerald-600 font-semibold">حيدر الغافقي  🌿</span></p>
-        </div>
-      </div>
-
-      {/* 📲 Install Prompt */}
-      <InstallPrompt />
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\LandingPage.js ---
-// ===============================================
-// 🏠 صفحة الهبوط (Landing Page)
-// أول صفحة يراها المستخدم الجديد
-// ===============================================
-
-import { Users } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import { TOTAL_USERS } from '../constants/messages';
-
-export default function LandingPage({ onStart }) {
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر العلوي */}
-      <IslamicBanner />
-      
-      {/* 📄 المحتوى */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-sm border border-stone-200 p-8 text-center">
-          
-          {/* 🎨 الأيقونة */}
-          <div className="w-20 h-20 bg-emerald-600 rounded-full mx-auto flex items-center justify-center mb-6">
-            <Users className="w-10 h-10 text-white" />
-          </div>
-
-          {/* 📝 العنوان */}
-          <h1 className="text-2xl font-semibold text-stone-800 mb-6">
-            منصة الدعاء الجماعي
-          </h1>
-          
-          {/* 📖 الآية */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-6">
-            <p className="text-stone-700 leading-relaxed text-base" style={{fontFamily: 'Traditional Arabic, serif'}}>
-              ﴿ وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ ﴾
-            </p>
-          </div>
-          
-          {/* 💬 الوصف */}
-          <p className="text-stone-600 text-base leading-relaxed mb-2">
-            دعاء واحد قد يغير حياة إنسان
-          </p>
-          <p className="text-stone-600 text-base leading-relaxed mb-6">
-            وقد يغير حياتك إن شاء الله
-          </p>
-
-          {/* 👥 عداد المستخدمين */}
-          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-            <p className="text-emerald-700 font-semibold text-lg">
-              🌍 انضم إلى {TOTAL_USERS.toLocaleString()} مؤمن
-            </p>
-            <p className="text-emerald-600 text-sm">من حول العالم</p>
-          </div>
-
-          {/* 🚀 زر البدء */}
-          <button
-            onClick={onStart}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-6 rounded-lg font-medium transition-colors"
-          >
-            ابدأ الآن إن شاء الله
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\LoginPage.js ---
-// ===============================================
-// 🔑 صفحة تسجيل الدخول (Login Page)
-// الدخول بالاسم واسم الأم
-// ===============================================
-
-import { useState } from 'react';
-import { LogIn, UserPlus } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import UniqueQuestionPicker from '../shared/UniqueQuestionPicker';
-
-export default function LoginPage({ onLogin, onSwitchToRegister }) {
-  const [formData, setFormData] = useState({ fullName: '', motherName: '' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showQuestionPicker, setShowQuestionPicker] = useState(false);
-  const [selectedQuestion, setSelectedQuestion] = useState(null);
-  const [questionAnswer, setQuestionAnswer] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await handleLogin();
-  };
-
-  const handleLogin = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      // Prepare login data
-      const loginData = {
-        fullName: formData.fullName,
-        motherName: formData.motherName
-      };
-
-      // Add question data if it exists
-      if (selectedQuestion && questionAnswer) {
-        loginData.uniqueQuestion = selectedQuestion;
-        loginData.questionAnswer = questionAnswer;
-      }
-
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        // 1. Check if multiple users exist
-        if (data.requiresQuestion) {
-          setShowQuestionPicker(true);
-          setLoading(false);
-          return;
-        }
-
-        setError(data.error || 'حدث خطأ');
-        setLoading(false);
-        return;
-      }
-
-      // 4. On success → saveAuth() + navigate('home')
-      onLogin(data.user, data.token);
-    } catch (err) {
-      setError('فشل الاتصال بالخادم');
-      setLoading(false);
-    }
-  };
-
-  const handleQuestionSubmit = (question, answer) => {
-    setSelectedQuestion(question);
-    setQuestionAnswer(answer);
-    setShowQuestionPicker(false);
-    // Continue login with question data
-    handleLogin();
-  };
-
-  if (showQuestionPicker) {
-    return (
-      <UniqueQuestionPicker
-        onSubmit={handleQuestionSubmit}
-        onCancel={() => {
-          setShowQuestionPicker(false);
-          setLoading(false);
-          setSelectedQuestion(null);
-          setQuestionAnswer('');
-        }}
-      />
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
-      
-      {/* 📄 المحتوى */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-sm border border-stone-200 p-8">
-          
-          {/* 🎨 الأيقونة */}
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-emerald-600 rounded-full mx-auto flex items-center justify-center mb-4">
-              <LogIn className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-2xl font-semibold text-stone-800 mb-2">
-              تسجيل الدخول
-            </h1>
-            <p className="text-stone-700">
-              أدخل بياناتك للوصول إلى حسابك
-            </p>
-          </div>
-
-          {/* ⚠️ رسالة الخطأ */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-              {error}
-            </div>
-          )}
-
-          {/* 📋 النموذج */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-stone-800 font-medium mb-2">
-                الاسم الكامل
-              </label>
-              <input
-                type="text"
-                value={formData.fullName}
-                onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                placeholder="محمد أحمد العلي"
-                className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none text-base"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-stone-800 font-medium mb-2">
-                اسم الأم
-              </label>
-              <input
-                type="text"
-                value={formData.motherName}
-                onChange={(e) => setFormData({...formData, motherName: e.target.value})}
-                placeholder="فاطمة"
-                className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none text-base"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-400 text-white py-3 rounded-lg font-medium transition-colors text-base"
-            >
-              {loading ? 'جاري الدخول...' : 'دخول'}
-            </button>
-          </form>
-
-          {/* 🔗 رابط التسجيل */}
-          <div className="mt-6 pt-6 border-t border-stone-200 text-center">
-            <p className="text-stone-700 mb-3">
-              ليس لديك حساب؟
-            </p>
-            <button
-              onClick={onSwitchToRegister}
-              className="w-full flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 py-3 rounded-lg font-medium transition-colors"
-            >
-              <UserPlus className="w-5 h-5" />
-              إنشاء حساب جديد
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\RegisterPage.js ---
-'use client'
-import { useState } from 'react';
-import IslamicBanner from '../shared/IslamicBanner';
-import UniqueQuestionPicker from '../shared/UniqueQuestionPicker';
-
-const QUESTIONS = [
-  'ما اسم والدك؟',
-  'ما اسم جدك؟',
-  'ما كنيتك؟',
-  'ما اسم أخيك الأكبر؟',
-  'كم أخ لديك؟',
-  'كم أخت لديك؟',
-  'ما هو عملك؟',
-  'ما هي شهادتك الدراسية؟',
-  'ما اسم مدينة ولادتك؟',
-  'ما اسم أول مدرسة لك؟',
-  'ما لون سيارتك الأولى؟',
-  'ما اسم حيوانك الأليف الأول؟',
-  'ما اسم أقرب صديق لك في الطفولة؟'
-];
-
-export default function RegisterPage({ onRegister, onSwitchToLogin }) {
-  const [formData, setFormData] = useState({
-    fullName: '',
-    motherName: '',
-    city: ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [showQuestions, setShowQuestions] = useState(false);
-  const [selectedQuestion, setSelectedQuestion] = useState('');
-  const [questionAnswer, setQuestionAnswer] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const handleInitialSubmit = async (e) => {
-    e.preventDefault();
-    
-    const fullName = formData.fullName.trim();
-    const motherName = formData.motherName.trim();
-
-    if (!fullName || !motherName) {
-      alert('الرجاء إدخال اسمك واسم والدتك');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage('');
-
-    try {
-      // فحص التفرد
-      const checkResponse = await fetch('/api/auth/check-uniqueness', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, motherName })
-      });
-
-      const checkData = await checkResponse.json();
-
-      if (checkData.isUnique) {
-        // الاسم فريد - تسجيل مباشر
-        await registerUser();
-      } else {
-        // الاسم مكرر - عرض الأسئلة
-        setShowQuestions(true);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('خطأ في الاتصال');
-      setLoading(false);
-    }
-  };
-
-  const handleQuestionSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!selectedQuestion || !questionAnswer.trim()) {
-      alert('الرجاء اختيار سؤال وإدخال الإجابة');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage('');
-
-    try {
-      // فحص تفرد السؤال والإجابة
-      const checkResponse = await fetch('/api/auth/check-uniqueness', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: formData.fullName.trim(),
-          motherName: formData.motherName.trim(),
-          uniqueQuestion: selectedQuestion,
-          questionAnswer: questionAnswer.trim()
-        })
-      });
-
-      const checkData = await checkResponse.json();
-
-      if (checkData.isUnique) {
-        await registerUser();
-      } else {
-        setErrorMessage('هذا السؤال والإجابة مستخدمان بالفعل. اختر سؤالاً آخر أو غيّر الإجابة');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('خطأ في الاتصال');
-      setLoading(false);
-    }
-  };
-
-  const registerUser = async () => {
-    try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: formData.fullName.trim(),
-          motherName: formData.motherName.trim(),
-          city: formData.city.trim(),
-          showFullName: true,
-          uniqueQuestion: selectedQuestion || null,
-          questionAnswer: questionAnswer.trim() || null
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        onRegister(data.user, data.token);
-      } else {
-        alert(data.error || 'حدث خطأ أثناء التسجيل');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('خطأ في الاتصال');
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      <IslamicBanner />
-      
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg border border-stone-200 p-8 w-full max-w-md">
-          <h2 className="text-2xl font-bold text-stone-800 mb-6 text-center">
-            تسجيل حساب جديد
-          </h2>
-
-          {!showQuestions ? (
-            <form onSubmit={handleInitialSubmit} className="space-y-4">
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  اسمك
-                </label>
-                <input
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                  placeholder="مثال: أحمد"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  اسم والدتك
-                </label>
-                <input
-                  type="text"
-                  value={formData.motherName}
-                  onChange={(e) => setFormData({...formData, motherName: e.target.value})}
-                  placeholder="مثال: فاطمة"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  مدينتك (اختياري)
-                </label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({...formData, city: e.target.value})}
-                  placeholder="مثال: الرياض"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
-              >
-                {loading ? 'جاري التحقق...' : 'متابعة'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleQuestionSubmit} className="space-y-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-stone-700 text-center">
-                  ⚠️ هناك مستخدم آخر بنفس الاسم واسم الأم
-                  <br />
-                  اختر سؤالاً سرياً للتمييز
-                </p>
-              </div>
-
-              {errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-700 text-center">{errorMessage}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  اختر سؤالاً سرياً
-                </label>
-                <select
-                  value={selectedQuestion}
-                  onChange={(e) => {
-                    setSelectedQuestion(e.target.value);
-                    setErrorMessage('');
-                  }}
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                >
-                  <option value="">-- اختر سؤالاً --</option>
-                  {QUESTIONS.map((q, idx) => (
-                    <option key={idx} value={q}>{q}</option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedQuestion && (
-                <div>
-                  <label className="block text-stone-700 font-medium mb-2">
-                    الإجابة
-                  </label>
-                  <input
-                    type="text"
-                    value={questionAnswer}
-                    onChange={(e) => {
-                      setQuestionAnswer(e.target.value);
-                      setErrorMessage('');
-                    }}
-                    placeholder="أدخل الإجابة"
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                    disabled={loading}
-                  />
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
-              >
-                {loading ? 'جاري التسجيل...' : 'تسجيل'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowQuestions(false);
-                  setSelectedQuestion('');
-                  setQuestionAnswer('');
-                  setErrorMessage('');
-                }}
-                className="w-full text-stone-600 hover:text-stone-800 py-2"
-              >
-                ← رجوع
-              </button>
-            </form>
-          )}
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={onSwitchToLogin}
-              className="text-emerald-600 hover:text-emerald-700 font-medium"
-            >
-              لديك حساب؟ تسجيل دخول
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\pages\StatsPage.js ---
-// ===============================================
-// 📊 صفحة الإحصائيات (Stats Page)
-// عرض إحصائيات المستخدم الشخصية
-// ===============================================
-
-import { useState, useEffect } from 'react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
-import VerificationBadge from '../shared/VerificationBadge';
-
-// تحويل أسماء الميزات للعربية
-function getFeatureName(feature) {
-  const featureNames = {
-    'priority_display': 'ظهور بالأولوية في القوائم',
-    'blue_badge': 'شارة التوثيق الزرقاء ✓',
-    'green_badge': 'شارة التوثيق الخضراء ✓✓',
-    'gold_badge': 'شارة التوثيق الذهبية 👑',
-    'top_priority': 'أولوية عليا',
-    'max_priority': 'أعلى أولوية',
-    'special_reactions': 'ردود فعل خاصة'
-  };
-  return featureNames[feature] || feature;
-}
-
-export default function StatsPage({ user, onNavigate, onEditProfile, onLogout }) {
-  // 📊 حالة التوثيق
-  const [verificationData, setVerificationData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // جلب بيانات التوثيق من API
-  useEffect(() => {
-    if (user) {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      fetch('/api/users/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            setVerificationData(data.stats);
-          }
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error('Error fetching stats:', err);
-          setLoading(false);
-        });
-    }
-  }, [user]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <p className="text-stone-600">جاري التحميل...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
-
-      {/* 📱 القائمة */}
-      <MenuBar
-        user={user}
-        currentPage="stats"
-        onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
-        onLogout={onLogout}
-      />
-
-      {/* 📄 المحتوى */}
-      <div className="flex-1 p-4">
-        <div className="max-w-2xl mx-auto space-y-4">
-
-          {/* 🎯 دعوات هذا الشهر */}
-          <div className="bg-white rounded-lg border border-stone-200 p-6 text-center">
-            <div className="text-5xl font-bold text-emerald-600 mb-2">
-              {verificationData?.prayersThisMonth || 0}
-            </div>
-            <p className="text-stone-600">دعاء هذا الشهر</p>
-            <p className="text-sm text-emerald-600 mt-2">ماشاء الله تبارك الله</p>
-          </div>
-
-          {/* 🏆 حالة التوثيق */}
-          {verificationData && (
-            <div className="bg-white p-6 rounded-lg border border-stone-200">
-              <h3 className="text-lg font-bold text-stone-800 mb-4">
-                حالة التوثيق
-              </h3>
-
-              <div className="text-center mb-4">
-                <VerificationBadge
-                  level={verificationData.verificationLevel}
-                  size="lg"
-                />
-                <p className="text-2xl font-bold text-emerald-600 mt-2">
-                  {verificationData.interactionRate}%
-                </p>
-                <p className="text-sm text-stone-600">معدل التفاعل</p>
-              </div>
-
-              {verificationData.nextLevel?.level !== 'MAX' && (
-                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-4">
-                  <p className="text-sm text-stone-700 text-center">
-                    باقي <span className="font-bold text-amber-600">{verificationData.nextLevel.remaining}%</span>
-                    {' '}للوصول إلى <span className="font-bold">{verificationData.nextLevel.levelName}</span>
-                    {' '}{verificationData.nextLevel.icon}
-                  </p>
-                </div>
-              )}
-
-              {verificationData.unlockedFeatures && verificationData.unlockedFeatures.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="font-semibold text-stone-800 mb-3">المميزات المفتوحة:</h4>
-                  <ul className="space-y-2">
-                    {verificationData.unlockedFeatures.map(feature => (
-                      <li key={feature} className="text-emerald-600 flex items-center gap-2 text-sm">
-                        <span className="text-emerald-600">✓</span>
-                        <span>{getFeatureName(feature)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {(!verificationData.unlockedFeatures || verificationData.unlockedFeatures.length === 0) && (
-                <div className="mt-6 text-center">
-                  <p className="text-stone-600 text-sm">
-                    استمر في الدعاء للآخرين لفتح المميزات! 💪
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 📈 إحصائيات عامة */}
-          <div className="bg-white rounded-lg border border-stone-200 p-6">
-            <h3 className="font-semibold text-stone-800 mb-4">إحصائيات عامة</h3>
-            <div className="space-y-3">
-
-              <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
-                <span className="text-stone-600">إجمالي دعواتك</span>
-                <span className="font-semibold text-emerald-600">
-                  {verificationData?.totalPrayersGiven || 0}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
-                <span className="text-stone-600">دعا لك</span>
-                <span className="font-semibold text-emerald-600">
-                  {verificationData?.prayersReceivedCount || 0} مؤمن
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
-                <span className="text-stone-600">طلبات استُجيبت</span>
-                <span className="font-semibold text-amber-600">
-                  {verificationData?.answeredPrayers || 0}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg">
-                <span className="text-stone-600">إشعارات استلمتها</span>
-                <span className="font-semibold text-blue-600">
-                  {verificationData?.totalNotificationsReceived || 0}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 💚 الأثر */}
-          <div className="bg-gradient-to-br from-emerald-50 to-amber-50 rounded-lg border border-emerald-200 p-6">
-            <h3 className="font-semibold text-stone-800 mb-3 text-center">
-              أثرك في المنصة
-            </h3>
-            <p className="text-sm text-stone-600 text-center mb-4">
-              دعواتك ساهمت في راحة {verificationData?.totalPrayersGiven || 0} قلب إن شاء الله
-            </p>
-            <div className="text-center text-3xl">💚</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-=== ALL SHARED COMPONENTS ===
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\CountdownTimer.js ---
-// Props: {targetTimestamp, onComplete, label}
-
-// State: timeRemaining (seconds)
-
-// useEffect: setInterval every 1s
-// Calculate: hours, minutes, seconds from timeRemaining
-
-// UI:
-// <div className="text-center">
-//   <p className="text-lg font-semibold text-stone-700">{label}</p>
-//   <div className="text-3xl font-bold text-emerald-600">
-//     {hours}:{minutes}:{seconds}
-//   </div>
-// </div>
-
-// When reaches 0 → call onComplete()
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\InstallPrompt.js ---
-'use client'
-import { useState, useEffect } from 'react';
-
-export default function InstallPrompt() {
-  const [showPrompt, setShowPrompt] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-
-  useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowPrompt(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    setDeferredPrompt(null);
-    setShowPrompt(false);
-  };
-
-  if (!showPrompt) return null;
-
-  return (
-    <div className="fixed bottom-20 left-4 right-4 bg-emerald-600 text-white p-4 rounded-lg shadow-lg z-50">
-      <p className="font-semibold mb-2">ثبّت التطبيق على جهازك</p>
-      <div className="flex gap-2">
-        <button onClick={handleInstall} className="flex-1 bg-white text-emerald-600 py-2 rounded-lg font-semibold">
-          تثبيت
-        </button>
-        <button onClick={() => setShowPrompt(false)} className="px-4 bg-emerald-700 rounded-lg">
-          لاحقاً
-        </button>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\IslamicBanner.js ---
-// ===============================================
-// 🕌 البانر الإسلامي العلوي
-// يظهر في أعلى كل صفحة كمساحة إعلانية
-// ===============================================
-
-import { useState, useEffect } from 'react';
-
-export default function IslamicBanner() {
-  const [bannerData, setBannerData] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/settings/banner')
-      .then(res => res.json())
-      .then(data => setBannerData(data))
-      .catch(err => console.error('Error fetching banner:', err));
-  }, []);
-
-  return (
-    <div className="h-20 bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-700 relative overflow-hidden">
-      {/* 🎨 الزخرفة الخلفية */}
-      <div className="absolute inset-0 opacity-20">
-        <div 
-          className="h-full w-full" 
-          style={{
-            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)`,
-          }}
-        ></div>
-      </div>
-      
-      {/* 📝 المحتوى - Logo "يُجيب" */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-center">
-          <div className="logo-text mb-1">يُجيب</div>
-          {bannerData?.active && (
-            <div className="text-amber-200 text-xs opacity-75">
-              {bannerData.text}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\MenuBar.js ---
-// ===============================================
-// 📱 القائمة الجانبية (Header + Menu)
-// تظهر في أعلى الصفحات الداخلية
-// ===============================================
-
-import { useState } from 'react';
-import { Menu, Edit2, Users, TrendingUp, Award, Heart, HelpCircle } from 'lucide-react';
-
-export default function MenuBar({ user, currentPage, onNavigate, onEditProfile }) {
-  const [showMenu, setShowMenu] = useState(false);
-
-  // 📋 عناصر القائمة
-  const menuItems = [
-    { id: 'home', label: 'الرئيسية', icon: Users },
-    { id: 'stats', label: 'الإحصائيات', icon: TrendingUp },
-    { id: 'achievements', label: 'الإنجازات', icon: Award },
-    { id: 'about', label: 'من نحن', icon: Heart },
-    { id: 'faq', label: 'الأسئلة الشائعة', icon: HelpCircle },
-  ];
-
-  const handleMenuClick = (pageId) => {
-    onNavigate(pageId);
-    setShowMenu(false);
-  };
-
-  return (
-    <>
-      {/* 🎯 الهيدر الثابت */}
-      <div className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            {/* زر القائمة */}
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="text-stone-600 hover:text-emerald-600 transition-colors"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-
-            {/* العنوان */}
-            <div className="text-center">
-              <h1 className="text-lg font-semibold text-stone-800">
-                منصة الدعاء الجماعي
-              </h1>
-              <p className="text-xs text-stone-600">
-                مرحباً {user?.displayName}
-              </p>
-            </div>
-
-            {/* زر تعديل الملف الشخصي */}
-            <button
-              onClick={onEditProfile}
-              className="text-stone-600 hover:text-emerald-600 transition-colors"
-            >
-              <Edit2 className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* 📂 القائمة المنسدلة */}
-        {showMenu && (
-          <div className="absolute top-full left-0 right-0 bg-white border-b border-stone-200 shadow-lg">
-            <div className="max-w-2xl mx-auto">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleMenuClick(item.id)}
-                    className={`w-full px-4 py-3 text-right hover:bg-stone-50 transition-colors border-b border-stone-100 flex items-center gap-3 ${
-                      currentPage === item.id ? 'bg-emerald-50' : ''
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 text-emerald-600" />
-                    <span className="text-stone-700">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\PrayerCard.js ---
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\ReactionButtons.js ---
-// ===============================================
-// 💬 أزرار التفاعل (Reaction Buttons)
-// تظهر على طلبات الدعاء لصاحب الطلب
-// ===============================================
-
-export default function ReactionButtons({ requestId, currentUserReaction, onReact }) {
-  const reactions = {
-    heart: 12,
-    angel: 8,
-    like: 15
-  };
-
-  return (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => onReact('heart')}
-        className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all ${
-          currentUserReaction === 'heart' 
-            ? 'bg-red-100 scale-110' 
-            : 'bg-stone-100 hover:bg-red-50'
-        }`}
-      >
-        ❤️ <span className="text-sm">{reactions.heart}</span>
-      </button>
-
-      <button
-        onClick={() => onReact('angel')}
-        className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all ${
-          currentUserReaction === 'angel'
-            ? 'bg-amber-100 scale-110'
-            : 'bg-stone-100 hover:bg-amber-50'
-        }`}
-      >
-        😇 <span className="text-sm">{reactions.angel}</span>
-      </button>
-
-      <button
-        onClick={() => onReact('like')}
-        className={`flex items-center gap-1 px-4 py-2 rounded-full transition-all ${
-          currentUserReaction === 'like'
-            ? 'bg-emerald-100 scale-110'
-            : 'bg-stone-100 hover:bg-emerald-50'
-        }`}
-      >
-        👍 <span className="text-sm">{reactions.like}</span>
-      </button>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\ReviewPrompt.js ---
-// Google review prompt (shown after 20 prayers)
-
-const [showReview, setShowReview] = useState(false)
-
-useEffect(() => {
-  if (user && stats.totalPrayersGiven >= 20) {
-    fetch('/api/reviews/request', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuth().token}`
-      },
-      body: JSON.stringify({userId: user.id})
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.shouldAskReview) {
-        setShowReview(true)
-      }
-    })
-  }
-}, [user, stats])
-
-// UI: Modal
-{showReview && (
-  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-lg p-6 max-w-sm">
-      <div className="text-4xl text-center mb-4">⭐</div>
-      <h3 className="text-lg font-bold text-center mb-3">
-        هل أعجبتك المنصة؟
-      </h3>
-      <p className="text-sm text-stone-600 text-center mb-4">
-        ساعدنا بتقييمك على Google لنصل لمزيد من المؤمنين
-      </p>
-      
-      <div className="flex gap-3">
-        <a 
-          href="https://g.page/r/..." 
-          target="_blank"
-          className="flex-1 bg-emerald-600 text-white py-2 rounded text-center"
-          onClick={() => setShowReview(false)}
-        >
-          تقييم الآن
-        </a>
-        <button 
-          onClick={() => setShowReview(false)}
-          className="px-4 text-stone-600"
-        >
-          لاحقاً
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\ShareButton.js ---
-'use client'
-import { Share2 } from 'lucide-react';
-
-export default function ShareButton({ title, text, url }) {
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-      } catch (err) {
-        console.error('Share failed:', err);
-      }
-    } else {
-      navigator.clipboard.writeText(url);
-      alert('تم نسخ الرابط!');
-    }
-  };
-
-  return (
-    <button
-      onClick={handleShare}
-      className="w-full bg-sky-600 hover:bg-sky-700 text-white p-5 rounded-lg transition-colors flex items-center justify-center gap-3"
-    >
-      <Share2 className="w-5 h-5" />
-      <div className="text-center">
-        <p className="font-semibold">شارك الموقع</p>
-        <p className="text-sm opacity-90">كل مؤمن جديد يعني دعوات أكثر إن شاء الله</p>
-      </div>
-    </button>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\TopWeeklyUser.js ---
-'use client'
-
-export default function TopWeeklyUser({ topUser }) {
-  if (!topUser) return null;
-
-  return (
-    <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-lg p-6 text-white">
-      <div className="text-center">
-        <div className="text-4xl mb-2">🏆</div>
-        <h3 className="text-lg font-bold mb-1">أفضل مستخدم هذا الأسبوع</h3>
-        <p className="text-2xl font-bold mb-1">{topUser.displayName}</p>
-        <p className="text-sm opacity-90">{topUser.prayerCount} دعاء</p>
-      </div>
-    </div>
-  );
-}
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\UniqueQuestionPicker.js ---
-// Props: {onSelectQuestion, onAnswerSubmit, availableQuestions}
-
-// QUESTIONS array:
-const UNIQUE_QUESTIONS = [
-  {id: 'father', label: 'اسم والدك', placeholder: 'أحمد'},
-  {id: 'grandfather', label: 'اسم جدك لأب', placeholder: 'محمد'},
-  {id: 'nickname', label: 'كنيتك', placeholder: 'أبو عبدالله'},
-  {id: 'birthDay', label: 'يوم ميلادك', type: 'number'},
-  {id: 'country', label: 'بلدك', placeholder: 'مصر'},
-  {id: 'region', label: 'منطقتك', placeholder: 'المعادي'},
-  {id: 'firstSchool', label: 'أول مدرسة', placeholder: 'مدرسة النور'},
-  {id: 'motherCity', label: 'مدينة ميلاد والدتك', placeholder: 'الإسكندرية'}
-]
-
-// UI: Dropdown to select question → Input field → Submit button
-// Font-size: text-base → text-lg
-// Colors: stone-700, emerald-600
-
---- FILE: C:\Users\hayda\OneDrive\Desktop\ALGHAFIQI\dua-platform\dua-platform\components\shared\VerificationBadge.js ---
-'use client'
-
-export default function VerificationBadge({ level, size = 'md', showTooltip = true }) {
-  if (!level) return null;
-
-  const sizeClasses = {
-    sm: 'text-base',
-    md: 'text-lg', 
-    lg: 'text-2xl'
-  };
-
-  return (
-    <span className={sizeClasses[size]} title={showTooltip ? level.name : ''}>
-      {level.icon}
-    </span>
-  );
-}
-
-=== DATABASE SCHEMA ===
-import { Pool } from 'pg';
-
-// إنشاء pool للاتصال بقاعدة البيانات
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 20, // الحد الأقصى للاتصالات
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
-
-// التحقق من الاتصال
-pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
-  process.exit(-1);
-});
-
-// دالة للاستعلامات
-export const query = async (text, params) => {
-  const start = Date.now();
-  try {
-    const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
-    return res;
-  } catch (error) {
-    console.error('Database query error:', error);
-    throw error;
-  }
-};
-
-// دالة للحصول على client من pool (للمعاملات)
-export const getClient = async () => {
-  const client = await pool.connect();
-  const query = client.query.bind(client);
-  const release = client.release.bind(client);
-
-  // تعيين timeout
-  const timeout = setTimeout(() => {
-    console.error('A client has been checked out for more than 5 seconds!');
-  }, 5000);
-
-  // تعديل release لإزالة timeout
-  client.release = () => {
-    clearTimeout(timeout);
-    return release();
-  };
-
-  return client;
-};
-
-export default pool;

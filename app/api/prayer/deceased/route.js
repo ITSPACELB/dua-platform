@@ -29,7 +29,6 @@ export async function POST(request) {
 
         const { deceasedName, deceasedMotherName, relation } = await request.json();
 
-        // التحقق من البيانات المطلوبة
         if (!deceasedName || !deceasedMotherName) {
             return NextResponse.json(
                 { error: 'اسم المتوفى واسم والدته مطلوبان' },
@@ -37,7 +36,6 @@ export async function POST(request) {
             );
         }
 
-        // فحص الحد الزمني (24 ساعة)
         const limitCheck = await query(
             `SELECT value FROM platform_settings WHERE key = 'request_limits'`
         );
@@ -72,7 +70,6 @@ export async function POST(request) {
             }
         }
 
-        // إنشاء طلب الدعاء للمتوفى
         const result = await query(
             `INSERT INTO prayer_requests (
                 user_id,
