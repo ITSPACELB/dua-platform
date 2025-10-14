@@ -1,52 +1,34 @@
 'use client'
 import { useState } from 'react';
 import IslamicBanner from '../shared/IslamicBanner';
-import UniqueQuestionPicker from '../shared/UniqueQuestionPicker';
-import PhoneInput from '../shared/PhoneInput';
 
 export default function RegisterPage({ onRegister, onSwitchToLogin }) {
   // ============================================================================
-  // 📝 حالة الخطوات
+  // 📝 حالة النموذج
   // ============================================================================
-  const [step, setStep] = useState(1); // 1: بيانات أساسية، 2: سؤال سري، 3: رقم هاتف
-  
   const [formData, setFormData] = useState({
     fullName: '',
     motherName: '',
+    phoneNumber: '',
     city: '',
-    nickname: '',
-    phoneNumber: ''
+    showFullName: true
   });
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  
-  // ============================================================================
-  // 🔐 للسؤال السري
-  // ============================================================================
-  const [requiresQuestion, setRequiresQuestion] = useState(false);
-  const [selectedQuestion, setSelectedQuestion] = useState('');
-  const [questionAnswer, setQuestionAnswer] = useState('');
-  const [existingQuestions, setExistingQuestions] = useState([]);
 
   // ============================================================================
-  // 📱 رقم الهاتف
+  // 📤 معالجة التسجيل
   // ============================================================================
-  const [showPhoneStep, setShowPhoneStep] = useState(false);
-  const [registeredUser, setRegisteredUser] = useState(null);
-  const [registeredToken, setRegisteredToken] = useState(null);
-
-  // ============================================================================
-  // 📤 الخطوة 1: إرسال البيانات الأساسية
-  // ============================================================================
-  const handleInitialSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     const fullName = formData.fullName.trim();
     const motherName = formData.motherName.trim();
 
+    // التحقق من الحقول المطلوبة
     if (!fullName || !motherName) {
-      setErrorMessage('الرجاء إدخال اسمك واسم والدتك');
+      setErrorMessage('الرجاء إدخال اسمك الكامل واسم والدتك');
       return;
     }
 
@@ -54,149 +36,32 @@ export default function RegisterPage({ onRegister, onSwitchToLogin }) {
     setErrorMessage('');
 
     try {
-      const registerResponse = await fetch('/api/auth/register', {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName,
           motherName,
-          city: formData.city.trim(),
-          nickname: formData.nickname.trim(),
           phoneNumber: formData.phoneNumber.trim() || null,
-          showFullName: true
+          city: formData.city.trim() || null,
+          showFullName: formData.showFullName
         })
-      });
-
-      const registerData = await registerResponse.json();
-
-      if (registerResponse.ok) {
-        // نجح التسجيل
-        setRegisteredUser(registerData.user);
-        setRegisteredToken(registerData.token);
-        
-        if (!formData.phoneNumber) {
-          // الانتقال لخطوة الهاتف
-          setShowPhoneStep(true);
-          setStep(3);
-          setLoading(false);
-        } else {
-          // تم إدخال الهاتف مسبقاً - تسجيل دخول مباشر
-          localStorage.setItem('token', registerData.token);
-          localStorage.setItem('user', JSON.stringify(registerData.user));
-          onRegister(registerData.user, registerData.token);
-        }
-      } else if (registerData.requiresQuestion) {
-        // يحتاج سؤال سري
-        setRequiresQuestion(true);
-        setExistingQuestions(registerData.existingQuestions || []);
-        setStep(2);
-        setLoading(false);
-      } else {
-        setErrorMessage(registerData.error || 'حدث خطأ');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      setErrorMessage('خطأ في الاتصال');
-      setLoading(false);
-    }
-  };
-
-  // ============================================================================
-  // 🔐 الخطوة 2: إرسال مع السؤال السري
-  // ============================================================================
-  const handleQuestionSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!selectedQuestion || !questionAnswer.trim()) {
-      setErrorMessage('الرجاء اختيار سؤال وإدخال الإجابة');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage('');
-
-    try {
-      const registerResponse = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: formData.fullName.trim(),
-          motherName: formData.motherName.trim(),
-          city: formData.city.trim(),
-          nickname: formData.nickname.trim(),
-          phoneNumber: formData.phoneNumber.trim() || null,
-          showFullName: true,
-          uniqueQuestion: selectedQuestion,
-          questionAnswer: questionAnswer.trim()
-        })
-      });
-
-      const registerData = await registerResponse.json();
-
-      if (registerResponse.ok) {
-        setRegisteredUser(registerData.user);
-        setRegisteredToken(registerData.token);
-        
-        if (!formData.phoneNumber) {
-          // الانتقال لخطوة الهاتف
-          setShowPhoneStep(true);
-          setStep(3);
-          setLoading(false);
-        } else {
-          localStorage.setItem('token', registerData.token);
-          localStorage.setItem('user', JSON.stringify(registerData.user));
-          onRegister(registerData.user, registerData.token);
-        }
-      } else {
-        setErrorMessage(registerData.error || 'حدث خطأ');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      setErrorMessage('خطأ في الاتصال');
-      setLoading(false);
-    }
-  };
-
-  // ============================================================================
-  // 📱 الخطوة 3: إضافة رقم الهاتف (اختياري)
-  // ============================================================================
-  const handlePhoneSubmit = async () => {
-    if (!formData.phoneNumber.trim()) {
-      // تخطي الهاتف
-      localStorage.setItem('token', registeredToken);
-      localStorage.setItem('user', JSON.stringify(registeredUser));
-      onRegister(registeredUser, registeredToken);
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/auth/verify-phone', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${registeredToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ phoneNumber: formData.phoneNumber.trim() })
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        alert(data.message);
-        localStorage.setItem('token', registeredToken);
-        localStorage.setItem('user', JSON.stringify(registeredUser));
-        onRegister(registeredUser, registeredToken);
+        // نجح التسجيل
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        onRegister(data.user, data.token);
       } else {
-        setErrorMessage(data.error || 'حدث خطأ');
+        setErrorMessage(data.error || 'حدث خطأ أثناء التسجيل');
         setLoading(false);
       }
     } catch (error) {
-      console.error('Error:', error);
-      setErrorMessage('خطأ في الاتصال');
+      console.error('Registration error:', error);
+      setErrorMessage('خطأ في الاتصال بالخادم');
       setLoading(false);
     }
   };
@@ -209,200 +74,183 @@ export default function RegisterPage({ onRegister, onSwitchToLogin }) {
       <IslamicBanner />
       
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg border border-stone-200 p-8 w-full max-w-md">
-          <h2 className="text-2xl font-bold text-stone-800 mb-6 text-center">
-            تسجيل حساب جديد
+        <div className="bg-white rounded-2xl border-2 border-stone-200 shadow-lg p-8 w-full max-w-2xl">
+          
+          {/* العنوان الرئيسي */}
+          <h2 className="text-3xl font-bold text-stone-800 mb-8 text-center">
+            📝 تسجيل حساب جديد
           </h2>
 
-          {/* الخطوة 1: البيانات الأساسية */}
-          {step === 1 && (
-            <form onSubmit={handleInitialSubmit} className="space-y-4">
-              {errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-700 text-center">{errorMessage}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  اسمك الكامل
-                </label>
-                <input
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                  placeholder="مثال: أحمد محمد العلي"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  اسم والدتك
-                </label>
-                <input
-                  type="text"
-                  value={formData.motherName}
-                  onChange={(e) => setFormData({...formData, motherName: e.target.value})}
-                  placeholder="مثال: فاطمة"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  الكنية (اختياري)
-                </label>
-                <input
-                  type="text"
-                  value={formData.nickname}
-                  onChange={(e) => setFormData({...formData, nickname: e.target.value})}
-                  placeholder="مثال: أبو محمد"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  مدينتك (اختياري)
-                </label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({...formData, city: e.target.value})}
-                  placeholder="مثال: الرياض"
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  رقم الهاتف (اختياري - مكافأة 5 نقاط 🎁)
-                </label>
-                <PhoneInput
-                  value={formData.phoneNumber}
-                  onChange={(value) => setFormData({...formData, phoneNumber: value})}
-                  placeholder="+966 50 123 4567"
-                  disabled={loading}
-                />
-                <p className="text-xs text-stone-500 mt-1">
-                  احصل على 5 نقاط مكافأة عند إدخال رقم هاتف صحيح
+          {/* قسم الفوائد - قبل النموذج */}
+          <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-xl p-6 mb-8">
+            <h3 className="text-2xl font-bold text-emerald-800 mb-4 text-center">
+              💡 لماذا التسجيل؟
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">📊</span>
+                <p className="text-lg text-stone-700 leading-relaxed">
+                  <strong>متابعة من دعا لك:</strong> شاهد عدد المؤمنين الذين دعوا لك اليوم
                 </p>
               </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">🏆</span>
+                <p className="text-lg text-stone-700 leading-relaxed">
+                  <strong>الحصول على شارات التوثيق:</strong> احصل على الشارة الزرقاء (80%+)، الخضراء (90%+)، أو الذهبية (98%+)
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">⭐</span>
+                <p className="text-lg text-stone-700 leading-relaxed">
+                  <strong>إمكانية الدعاء الجماعي:</strong> ادعُ لجميع المؤمنين عند وصول نسبة التفاعل 95%
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">👑</span>
+                <p className="text-lg text-stone-700 leading-relaxed">
+                  <strong>إمكانية الدعاء الخاص:</strong> أرسل دعاءً خاصاً لشخص محدد عند وصول نسبة التفاعل 98%
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">📈</span>
+                <p className="text-lg text-stone-700 leading-relaxed">
+                  <strong>متابعة إحصائياتك:</strong> راقب عدد الأدعية التي قمت بها ونسبة تفاعلك
+                </p>
+              </div>
+            </div>
+          </div>
 
-              <button
-                type="submit"
+          {/* ملاحظة مهمة */}
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-8 text-center">
+            <p className="text-lg text-blue-800 leading-relaxed">
+              ℹ️ <strong>ملاحظة:</strong> يمكنك استخدام المنصة بدون تسجيل - التسجيل اختياري لكن يفتح مميزات إضافية
+            </p>
+          </div>
+
+          {/* النموذج */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* رسالة الخطأ */}
+            {errorMessage && (
+              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 animate-shake">
+                <p className="text-lg text-red-700 text-center font-semibold">
+                  ⚠️ {errorMessage}
+                </p>
+              </div>
+            )}
+
+            {/* الاسم الكامل */}
+            <div>
+              <label className="block text-stone-700 font-bold mb-3 text-xl">
+                الاسم الكامل *
+              </label>
+              <input
+                type="text"
+                value={formData.fullName}
+                onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                placeholder="مثال: أحمد محمد العلي"
+                className="w-full h-14 px-5 text-lg border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 focus:outline-none transition-all"
                 disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
-              >
-                {loading ? 'جاري التسجيل...' : 'متابعة'}
-              </button>
-            </form>
-          )}
+                required
+              />
+            </div>
 
-          {/* الخطوة 2: السؤال السري */}
-          {step === 2 && (
-            <form onSubmit={handleQuestionSubmit} className="space-y-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-stone-700 text-center">
-                  ⚠️ هناك مستخدم آخر بنفس الاسم واسم الأم
-                  <br />
-                  اختر سؤالاً سرياً للتمييز
-                </p>
-              </div>
+            {/* اسم الأم */}
+            <div>
+              <label className="block text-stone-700 font-bold mb-3 text-xl">
+                اسم والدتك *
+              </label>
+              <input
+                type="text"
+                value={formData.motherName}
+                onChange={(e) => setFormData({...formData, motherName: e.target.value})}
+                placeholder="مثال: فاطمة"
+                className="w-full h-14 px-5 text-lg border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 focus:outline-none transition-all"
+                disabled={loading}
+                required
+              />
+            </div>
 
-              {errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-700 text-center">{errorMessage}</p>
-                </div>
-              )}
+            {/* رقم الهاتف */}
+            <div>
+              <label className="block text-stone-700 font-bold mb-3 text-xl">
+                رقم الهاتف (اختياري)
+              </label>
+              <input
+                type="tel"
+                value={formData.phoneNumber}
+                onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
+                placeholder="+964 XXX XXX XXXX مثال"
+                className="w-full h-14 px-5 text-lg border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 focus:outline-none transition-all"
+                disabled={loading}
+                dir="ltr"
+              />
+              <p className="text-base text-stone-500 mt-2">
+                💡 رقم الهاتف اختياري ويُستخدم لإرسال إشعارات مهمة فقط
+              </p>
+            </div>
 
-              <UniqueQuestionPicker
-                selectedQuestion={selectedQuestion}
-                onQuestionChange={setSelectedQuestion}
-                questionAnswer={questionAnswer}
-                onAnswerChange={setQuestionAnswer}
-                existingQuestions={existingQuestions}
+            {/* المدينة */}
+            <div>
+              <label className="block text-stone-700 font-bold mb-3 text-xl">
+                المدينة (اختياري)
+              </label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData({...formData, city: e.target.value})}
+                placeholder="مثال: بغداد"
+                className="w-full h-14 px-5 text-lg border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 focus:outline-none transition-all"
                 disabled={loading}
               />
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
-              >
-                {loading ? 'جاري التسجيل...' : 'تسجيل'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep(1);
-                  setSelectedQuestion('');
-                  setQuestionAnswer('');
-                  setErrorMessage('');
-                }}
-                className="w-full text-stone-600 hover:text-stone-800 py-2"
-              >
-                ← رجوع
-              </button>
-            </form>
-          )}
-
-          {/* الخطوة 3: رقم الهاتف */}
-          {step === 3 && showPhoneStep && (
-            <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-emerald-700 text-center">
-                  ✅ تم التسجيل بنجاح!
-                </p>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-stone-700 text-center">
-                  🎁 أضف رقم هاتفك واحصل على 5 نقاط مكافأة
-                </p>
-              </div>
-
-              {errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-700 text-center">{errorMessage}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-stone-700 font-medium mb-2">
-                  رقم الهاتف (اختياري)
-                </label>
-                <PhoneInput
-                  value={formData.phoneNumber}
-                  onChange={(value) => setFormData({...formData, phoneNumber: value})}
-                  placeholder="+966 50 123 4567"
+            {/* إظهار الاسم الكامل */}
+            <div className="bg-stone-50 border-2 border-stone-200 rounded-xl p-5">
+              <label className="flex items-center gap-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.showFullName}
+                  onChange={(e) => setFormData({...formData, showFullName: e.target.checked})}
+                  className="w-6 h-6 text-emerald-600 border-2 border-stone-300 rounded focus:ring-4 focus:ring-emerald-200"
                   disabled={loading}
                 />
-              </div>
-
-              <button
-                onClick={handlePhoneSubmit}
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
-              >
-                {loading ? 'جاري الحفظ...' : formData.phoneNumber.trim() ? 'حفظ والمتابعة' : 'تخطي'}
-              </button>
+                <span className="text-lg text-stone-700 font-semibold">
+                  إظهار اسمي الكامل للمؤمنين
+                </span>
+              </label>
+              <p className="text-base text-stone-500 mt-3 mr-10">
+                إذا لم تختر هذا الخيار، سيظهر اسمك الأول فقط (مثال: أحمد...)
+              </p>
             </div>
-          )}
+
+            {/* زر التسجيل */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-16 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl text-2xl font-bold transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-3">
+                  <span className="animate-spin">⏳</span>
+                  جاري التسجيل...
+                </span>
+              ) : (
+                '✅ تسجيل حساب جديد'
+              )}
+            </button>
+          </form>
 
           {/* رابط تسجيل الدخول */}
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center border-t-2 border-stone-200 pt-6">
+            <p className="text-lg text-stone-600 mb-3">
+              لديك حساب بالفعل؟
+            </p>
             <button
               onClick={onSwitchToLogin}
-              className="text-emerald-600 hover:text-emerald-700 font-medium"
+              className="text-emerald-600 hover:text-emerald-700 font-bold text-xl transition-colors"
             >
-              لديك حساب؟ تسجيل دخول
+              🔑 تسجيل الدخول
             </button>
           </div>
         </div>

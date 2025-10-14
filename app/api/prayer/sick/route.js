@@ -84,13 +84,15 @@ export async function POST(request) {
                 status,
                 created_at,
                 expires_at
-            ) VALUES ($1, 'sick', $2, $3, $4, 'active', NOW(), NOW() + INTERVAL '24 hours')
+            ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW() + INTERVAL '24 hours')
             RETURNING id, created_at, expires_at`,
             [
-                decoded.userId, 
+                decoded.userId,
+                'sick',
                 isNamePrivate,
                 isNamePrivate ? null : sickPersonName, 
-                isNamePrivate ? null : sickPersonMotherName
+                isNamePrivate ? null : sickPersonMotherName,
+                'active'
             ]
         );
 
