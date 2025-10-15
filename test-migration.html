@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Run Migrations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .loading {
+            background: #fef3c7;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ تشغيل Migrations</h1>
+        <p>اضغط الزر لتطبيق التعديلات على قاعدة البيانات</p>
+        
+        <button onclick="runMigrations()">▶️ تشغيل Migrations</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function runMigrations() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'loading';
+            resultDiv.textContent = '⏳ جاري تطبيق Migrations...';
+
+            try {
+                const response = await fetch('http://localhost:3000/api/admin/run-migrations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        adminSecret: 'YOUR_SUPER_SECRET_ADMIN_KEY_2025'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    resultDiv.className = 'success';
+                    resultDiv.textContent = '✅ نجح!\n\n' + 
+                        data.message + '\n\n' +
+                        data.results.join('\n');
+                } else {
+                    resultDiv.className = 'error';
+                    resultDiv.textContent = '❌ خطأ:\n\n' + 
+                        (data.error || 'Unknown error') + '\n\n' +
+                        (data.detail || '');
+                }
+            } catch (error) {
+                resultDiv.className = 'error';
+                resultDiv.textContent = '❌ خطأ في الاتصال:\n\n' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,56 +1,62 @@
 'use client'
 import { useState, useEffect } from 'react';
 
-/**
- * نظام تقييم المنصة بالنجوم
- * مع دعم Google Schema (AggregateRating)
- * تصميم واضح وكبير لكبار السن
- */
+// ════════════════════════════════════════════════════════════
+// ⭐ نظام التقييم المُعاد تصميمه
+// ════════════════════════════════════════════════════════════
+// التصميم الجديد:
+// - يبدأ من 0.0 (صادق وشفاف)
+// - 5 نجوم كبيرة أفقية
+// - النجمة الخامسة مختارة افتراضياً
+// - hover effect: scale 125%
+// - تصميم فاخر مع amber gradient
+// - اقتباس قرآني قصير
+// - منع التقييمات المتكررة
+// ════════════════════════════════════════════════════════════
+
 export default function RatingSystem() {
-  // ============================================================================
-  // 📊 بيانات التقييم
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
+  // 🔧 الحالة
+  // ═══════════════════════════════════════════════════════════
   const [rating, setRating] = useState({
-    average: 4.9,
-    count: 12847,
-    distribution: {
-      5: 11234,
-      4: 1156,
-      3: 289,
-      2: 98,
-      1: 70
-    }
+    average: 0.0,
+    count: 0
   });
 
-  const [userRating, setUserRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
+  const [selectedStars, setSelectedStars] = useState(5); // افتراضياً 5 نجوم
+  const [hoverStars, setHoverStars] = useState(0);
   const [hasRated, setHasRated] = useState(false);
-  const [showThankYou, setShowThankYou] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  // ============================================================================
-  // 🔄 useEffect: التحقق من تقييم المستخدم السابق
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
+  // 🎯 التحقق من التقييم السابق عند التحميل
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    const savedRating = localStorage.getItem('user-rating');
-    if (savedRating) {
-      setUserRating(parseInt(savedRating));
+    // التحقق من localStorage
+    const userRating = localStorage.getItem('dua-platform-rating');
+    if (userRating) {
       setHasRated(true);
+      setSelectedStars(parseInt(userRating));
     }
 
-    // جلب التقييمات من API (اختياري)
+    // جلب التقييم الإجمالي
     fetchRatings();
   }, []);
 
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
   // 🌐 جلب التقييمات من الخادم
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
   const fetchRatings = async () => {
     try {
-      const response = await fetch('/api/ratings');
+      const response = await fetch('/api/reviews');
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
-          setRating(data.rating);
+        if (data.success && data.stats) {
+          setRating({
+            average: data.stats.averageRating || 0.0,
+            count: data.stats.totalReviews || 0
+          });
         }
       }
     } catch (error) {
@@ -58,83 +64,64 @@ export default function RatingSystem() {
     }
   };
 
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
   // ⭐ معالجة التقييم
-  // ============================================================================
-  const handleRate = async (stars) => {
-    if (hasRated) return;
+  // ═══════════════════════════════════════════════════════════
+  const handleSubmitRating = async () => {
+    if (hasRated || isSubmitting) return;
 
-    setUserRating(stars);
-    setHasRated(true);
-    setShowThankYou(true);
-    localStorage.setItem('user-rating', stars.toString());
+    setIsSubmitting(true);
 
-    // إرسال التقييم للخادم
     try {
-      await fetch('/api/ratings', {
+      // إرسال التقييم للخادم
+      const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ rating: stars })
+        body: JSON.stringify({ rating: selectedStars })
       });
+
+      if (response.ok) {
+        // حفظ في localStorage
+        localStorage.setItem('dua-platform-rating', selectedStars.toString());
+        setHasRated(true);
+        setShowSuccess(true);
+
+        // إخفاء رسالة النجاح بعد 5 ثواني
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 5000);
+
+        // تحديث التقييم الإجمالي
+        fetchRatings();
+      }
     } catch (error) {
       console.error('Error submitting rating:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // إخفاء رسالة الشكر بعد 3 ثواني
-    setTimeout(() => {
-      setShowThankYou(false);
-    }, 3000);
-
-    // تحديث البيانات
-    fetchRatings();
   };
 
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
   // 🎨 عرض النجوم
-  // ============================================================================
-  const renderStars = (count, size = 'large', interactive = false) => {
-    return Array.from({ length: 5 }, (_, i) => {
-      const starNumber = i + 1;
-      const isFilled = interactive 
-        ? starNumber <= (hoverRating || userRating)
-        : starNumber <= count;
+  // ═══════════════════════════════════════════════════════════
+  const displayStars = hoverStars || selectedStars;
 
-      return (
-        <button
-          key={i}
-          onClick={() => interactive && !hasRated && handleRate(starNumber)}
-          onMouseEnter={() => interactive && !hasRated && setHoverRating(starNumber)}
-          onMouseLeave={() => interactive && !hasRated && setHoverRating(0)}
-          disabled={hasRated}
-          className={`transition-all ${
-            size === 'large' ? 'text-6xl' : 'text-4xl'
-          } ${
-            interactive && !hasRated ? 'cursor-pointer hover:scale-110' : 'cursor-default'
-          } ${
-            hasRated ? 'opacity-60' : ''
-          }`}
-        >
-          {isFilled ? '⭐' : '☆'}
-        </button>
-      );
-    });
+  // ═══════════════════════════════════════════════════════════
+  // 📖 الاقتباس القرآني
+  // ═══════════════════════════════════════════════════════════
+  const quranQuote = {
+    text: "تَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ",
+    source: "سورة العصر"
   };
 
-  // ============================================================================
-  // 📊 حساب النسبة المئوية لكل تقييم
-  // ============================================================================
-  const getPercentage = (count) => {
-    return ((count / rating.count) * 100).toFixed(1);
-  };
-
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
   // 🎨 واجهة المستخدم
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════
   return (
-    <div className="bg-white rounded-2xl border-2 border-stone-200 overflow-hidden shadow-lg">
+    <div className="w-full max-w-4xl mx-auto">
       
       {/* JSON-LD Schema لـ Google */}
       <script
@@ -155,93 +142,142 @@ export default function RatingSystem() {
         }}
       />
 
-      {/* Header */}
-      <div className="bg-gradient-to-r from-amber-500 to-amber-600 p-6 text-center border-b-4 border-amber-700">
-        <h2 className="text-white font-bold text-3xl">
-          ⭐ تقييم المنصة
-        </h2>
-      </div>
-
-      <div className="p-8">
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* البطاقة الرئيسية */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div className="bg-gradient-to-br from-white to-amber-50 rounded-3xl border-2 border-amber-200 shadow-xl overflow-hidden">
         
-        {/* التقييم الإجمالي */}
-        <div className="text-center mb-8 pb-8 border-b-2 border-stone-200">
-          <div className="text-7xl font-bold text-amber-600 mb-3">
-            {rating.average.toFixed(1)}
-          </div>
-          <div className="flex justify-center gap-2 mb-4">
-            {renderStars(Math.round(rating.average), 'large', false)}
-          </div>
-          <p className="text-2xl text-stone-600 font-semibold">
-            بناءً على {rating.count.toLocaleString('ar-IQ')} تقييم
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* العنوان */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="text-center p-8 border-b-2 border-amber-200">
+          <h2 className="text-4xl font-bold text-stone-800 mb-3">
+            ⭐ قيّمنا وساعدنا نصل لأناس أكثر
+          </h2>
+          <p className="text-lg text-stone-600">
+            رأيك يساعدنا في تحسين المنصة وخدمة المزيد من المؤمنين
           </p>
         </div>
 
-        {/* توزيع التقييمات */}
-        <div className="mb-8 pb-8 border-b-2 border-stone-200 space-y-4">
-          <h3 className="text-2xl font-bold text-stone-800 mb-5 text-center">
-            توزيع التقييمات
-          </h3>
-          {[5, 4, 3, 2, 1].map(stars => (
-            <div key={stars} className="flex items-center gap-4">
-              <div className="flex items-center gap-2 w-32">
-                <span className="text-2xl font-bold text-stone-700">{stars}</span>
-                <span className="text-3xl">⭐</span>
-              </div>
-              <div className="flex-1 bg-stone-200 rounded-full h-8 overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-500 ${
-                    stars >= 4 ? 'bg-emerald-500' : stars === 3 ? 'bg-amber-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${getPercentage(rating.distribution[stars])}%` }}
-                />
-              </div>
-              <div className="w-24 text-left">
-                <span className="text-xl font-bold text-stone-600">
-                  {getPercentage(rating.distribution[stars])}%
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* قسم تقييم المستخدم */}
-        <div className="bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl p-8 border-2 border-amber-200">
-          <h3 className="text-2xl font-bold text-stone-800 mb-5 text-center">
-            {hasRated ? 'شكراً لتقييمك!' : 'قيّم تجربتك معنا'}
-          </h3>
+        <div className="p-8">
           
-          <div className="flex justify-center gap-3 mb-6">
-            {renderStars(userRating, 'large', true)}
+          {/* ═══════════════════════════════════════════════════════ */}
+          {/* التقييم الإجمالي */}
+          {/* ═══════════════════════════════════════════════════════ */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-baseline gap-3 mb-2">
+              <span className="text-7xl font-bold bg-gradient-to-r from-amber-500 to-amber-600 bg-clip-text text-transparent">
+                {rating.average.toFixed(1)}
+              </span>
+              <span className="text-3xl text-stone-600">/ 5.0</span>
+            </div>
+            <p className="text-xl text-stone-600">
+              ({rating.count.toLocaleString('ar-IQ')} {rating.count === 0 ? 'تقييمات' : rating.count === 1 ? 'تقييم' : rating.count === 2 ? 'تقييمان' : 'تقييمات'})
+            </p>
           </div>
 
-          {!hasRated && (
-            <p className="text-center text-xl text-stone-600">
-              اضغط على النجوم لتقييم المنصة
-            </p>
-          )}
+          {/* ═══════════════════════════════════════════════════════ */}
+          {/* قسم التقييم */}
+          {/* ═══════════════════════════════════════════════════════ */}
+          {!hasRated ? (
+            <div className="bg-white rounded-2xl border-2 border-amber-300 p-8 shadow-lg">
+              
+              {/* النجوم */}
+              <div className="flex justify-center gap-4 mb-8">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => !isSubmitting && setSelectedStars(star)}
+                    onMouseEnter={() => !isSubmitting && setHoverStars(star)}
+                    onMouseLeave={() => !isSubmitting && setHoverStars(0)}
+                    disabled={isSubmitting}
+                    className={`
+                      text-6xl transition-all duration-200 star-hover
+                      ${isSubmitting ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                      ${star <= displayStars ? 'scale-100' : 'scale-90 opacity-40'}
+                    `}
+                    aria-label={`تقييم ${star} نجوم`}
+                  >
+                    {star <= displayStars ? (
+                      <span className="text-amber-500">⭐</span>
+                    ) : (
+                      <span className="text-stone-300">☆</span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-          {hasRated && !showThankYou && (
-            <div className="text-center">
-              <p className="text-2xl font-bold text-emerald-600 mb-2">
-                ✓ تم إرسال تقييمك
+              {/* النص التوضيحي */}
+              <p className="text-center text-xl text-stone-600 mb-6">
+                اضغط على النجوم لاختيار تقييمك (الافتراضي: 5 نجوم)
               </p>
+
+              {/* زر التقييم */}
+              <button
+                onClick={handleSubmitRating}
+                disabled={isSubmitting}
+                className="w-full h-16 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-2xl font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="animate-spin text-3xl">⏳</span>
+                    <span>جاري الإرسال...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-3xl">⭐</span>
+                    <span>قيّمنا بـ {selectedStars} {selectedStars === 5 ? 'نجوم' : selectedStars >= 3 ? 'نجوم' : 'نجمة'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* الاقتباس القرآني */}
+              <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-center text-lg font-semibold text-amber-900 mb-1">
+                  {quranQuote.text}
+                </p>
+                <p className="text-center text-sm text-amber-700">
+                  {quranQuote.source}
+                </p>
+              </div>
+            </div>
+          ) : (
+            // ═══════════════════════════════════════════════════════
+            // رسالة بعد التقييم
+            // ═══════════════════════════════════════════════════════
+            <div className={`bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-2xl border-2 border-emerald-300 p-8 text-center transition-all duration-500 ${showSuccess ? 'animate-slide-down' : ''}`}>
+              <div className="text-6xl mb-4">
+                {showSuccess ? '🎉' : '✅'}
+              </div>
+              <h3 className="text-3xl font-bold text-emerald-700 mb-3">
+                {showSuccess ? 'جزاك الله خيراً على تقييمك!' : 'شكراً لك!'}
+              </h3>
+              <p className="text-xl text-emerald-600 mb-4">
+                قيّمت المنصة بـ {selectedStars} {selectedStars === 5 ? 'نجوم' : selectedStars >= 3 ? 'نجوم' : 'نجمة'}
+              </p>
+              
+              {/* النجوم المختارة */}
+              <div className="flex justify-center gap-3 mb-4">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span
+                    key={star}
+                    className="text-5xl"
+                  >
+                    {star <= selectedStars ? (
+                      <span className="text-amber-500">⭐</span>
+                    ) : (
+                      <span className="text-stone-300">☆</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+
               <p className="text-lg text-stone-600">
-                قيمت المنصة بـ {userRating} نجوم
+                تقييمك يساعدنا في الوصول لمزيد من الناس وتحسين خدماتنا
               </p>
             </div>
           )}
 
-          {showThankYou && (
-            <div className="text-center animate-bounce">
-              <p className="text-3xl font-bold text-emerald-600 mb-2">
-                🎉 جزاك الله خيراً!
-              </p>
-              <p className="text-xl text-stone-600">
-                رأيك يساعدنا في التحسين المستمر
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

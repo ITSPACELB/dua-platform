@@ -4,7 +4,6 @@ import IslamicBanner from '../shared/IslamicBanner';
 import MenuBar from '../shared/MenuBar';
 import CountdownTimer from '../shared/CountdownTimer';
 import VerificationBadge from '../shared/VerificationBadge';
-import ReactionButtons from '../shared/ReactionButtons';
 import TopWeeklyUser from '../shared/TopWeeklyUser';
 import InstallPrompt from '../shared/InstallPrompt';
 import ShareButton from '../shared/ShareButton';
@@ -13,15 +12,23 @@ import RatingSystem from '../RatingSystem';
 import BadgesSection from '../BadgesSection';
 import BooksSection from '../BooksSection';
 import AwarenessSection from '../AwarenessSection';
+import PrayerModal from '../shared/PrayerModal';
+import PrayerCard from '../shared/PrayerCard';
+import PrayerOptions from '../sections/PrayerOptions';
 import { encouragingMessages, blessingsExample, TOTAL_USERS } from '../constants/messages';
 
-export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) {
+export default function HomePage({ user, onNavigate, onLogout }) {
   // ============================================================================
   // 🎲 رسالة تشجيعية عشوائية
   // ============================================================================
-  const [randomMessage] = useState(
+  const [randomMessage, setRandomMessage] = useState('');
+
+useEffect(() => {
+  // اختر الرسالة العشوائية بعد التحميل (client-side only)
+  setRandomMessage(
     encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)]
   );
+}, []);
 
   // ============================================================================
   // 📋 حالة الطلبات
@@ -43,43 +50,9 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   const [displayedRequests, setDisplayedRequests] = useState([]);
 
   // ============================================================================
-  // ⏰ حدود الطلبات (Time Limits)
+  // 🕌 نافذة طلب الدعاء
   // ============================================================================
-  const [prayerLimit, setPrayerLimit] = useState({
-    canRequest: true,
-    remainingSeconds: 0,
-    nextAllowedAt: null
-  });
-
-  const [deceasedLimit, setDeceasedLimit] = useState({
-    canRequest: true,
-    remainingSeconds: 0,
-    nextAllowedAt: null
-  });
-
-  const [sickLimit, setSickLimit] = useState({
-    canRequest: true,
-    remainingSeconds: 0,
-    nextAllowedAt: null
-  });
-
-  // ============================================================================
-  // 📝 نماذج الطلبات
-  // ============================================================================
-  const [showDeceasedForm, setShowDeceasedForm] = useState(false);
-  const [showSickForm, setShowSickForm] = useState(false);
-  
-  const [deceasedForm, setDeceasedForm] = useState({
-    fullName: '',
-    motherName: '',
-    relation: ''
-  });
-
-  const [sickForm, setSickForm] = useState({
-    fullName: '',
-    motherName: '',
-    isPrivate: false
-  });
+  const [openModal, setOpenModal] = useState(null); // null | 'general' | 'sick' | 'deceased' | 'collective'
 
   // ============================================================================
   // 📊 إحصائيات وميزات المستخدم
@@ -119,40 +92,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   };
 
   // ============================================================================
-  // 🔄 useEffect: جلب حدود الطلبات عند التحميل
-  // ============================================================================
-  useEffect(() => {
-    if (user) {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      fetch('/api/prayer-request/check-limit', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setPrayerLimit({
-            canRequest: data.canRequestPrayer,
-            remainingSeconds: data.remainingSeconds?.prayer || 0,
-            nextAllowedAt: data.nextPrayerAllowedAt
-          });
-          setDeceasedLimit({
-            canRequest: data.canRequestDeceased,
-            remainingSeconds: data.remainingSeconds?.deceased || 0,
-            nextAllowedAt: data.nextDeceasedAllowedAt
-          });
-          setSickLimit({
-            canRequest: data.canRequestSick,
-            remainingSeconds: data.remainingSeconds?.sick || 0,
-            nextAllowedAt: data.nextSickAllowedAt
-          });
-        })
-        .catch(err => console.error('Error checking limits:', err));
-    }
-  }, [user]);
-
-  // ============================================================================
-  // 🔄 useEffect: جلب طلبات الدعاء
+  // 📄 useEffect: جلب طلبات الدعاء
   // ============================================================================
   useEffect(() => {
     if (user) {
@@ -177,7 +117,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   }, [user]);
 
   // ============================================================================
-  // 🔄 useEffect: فلترة الطلبات عند تغيير التبويب
+  // 📄 useEffect: فلترة الطلبات عند تغيير التبويب
   // ============================================================================
   useEffect(() => {
     if (activeTab === 'all') {
@@ -193,7 +133,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   }, [activeTab, requests]);
 
   // ============================================================================
-  // 🔄 useEffect: تحديث الطلبات المعروضة حسب الصفحة
+  // 📄 useEffect: تحديث الطلبات المعروضة حسب الصفحة
   // ============================================================================
   useEffect(() => {
     const startIndex = 0;
@@ -202,7 +142,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   }, [filteredRequests, currentPage, itemsPerPage]);
 
   // ============================================================================
-  // 🔄 useEffect: جلب إحصائيات المستخدم
+  // 📄 useEffect: جلب إحصائيات المستخدم
   // ============================================================================
   useEffect(() => {
     if (user) {
@@ -225,7 +165,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   }, [user]);
 
   // ============================================================================
-  // 🔄 useEffect: جلب المستخدمين النشطين (للدعاء الخاص)
+  // 📄 useEffect: جلب المستخدمين النشطين (للدعاء الخاص)
   // ============================================================================
   useEffect(() => {
     if (canPrivate && user) {
@@ -246,7 +186,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
   }, [canPrivate, user]);
 
   // ============================================================================
-  // 🔄 useEffect: جلب أفضل مستخدم أسبوعياً
+  // 📄 useEffect: جلب أفضل مستخدم أسبوعياً
   // ============================================================================
   useEffect(() => {
     fetch('/api/users/top-weekly')
@@ -258,124 +198,59 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
       })
       .catch(err => console.error('Error fetching top user:', err));
   }, []);
-
   // ============================================================================
-  // 🤲 طلب دعاء عام
+  // 📤 معالجة إرسال طلب الدعاء (من Modal)
   // ============================================================================
-  const handleRequestPrayer = async () => {
+  const handlePrayerSubmit = async (data) => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
     try {
-      const res = await fetch('/api/prayer-request', {
+      let endpoint = '/api/prayer-request';
+      let body = { prayerType: data.type };
+
+      if (data.type === 'deceased') {
+        body.deceasedName = data.name;
+        body.deceasedMotherName = data.motherName;
+        body.relation = data.relation;
+      } else if (data.type === 'sick') {
+        body.sickPersonName = data.name;
+        body.sickPersonMotherName = data.motherName;
+        body.isNamePrivate = !data.name;
+      } else if (data.type === 'collective') {
+        endpoint = '/api/prayer/collective';
+        body = {
+          date: data.date,
+          time: data.time,
+          intention: data.intention
+        };
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ prayerType: 'general' })
+        body: JSON.stringify(body)
       });
 
-      const data = await res.json();
+      const result = await res.json();
 
       if (res.ok) {
-        alert('تم إرسال طلبك! سيصل إشعار للمؤمنين خلال 30 دقيقة إن شاء الله');
+        alert(result.message || 'تم إرسال طلبك بنجاح!');
         window.location.reload();
       } else {
-        alert(data.error || 'حدث خطأ');
+        alert(result.error || 'حدث خطأ');
       }
     } catch (error) {
-      console.error('Request prayer error:', error);
-      alert('حدث خطأ أثناء إرسال الطلب');
+      console.error('Submit error:', error);
+      alert('حدث خطأ أثناء الإرسال');
     }
   };
 
   // ============================================================================
-  // 🕊️ طلب دعاء للمتوفى
-  // ============================================================================
-  const handleDeceasedPrayer = async () => {
-    if (!deceasedForm.fullName || !deceasedForm.motherName) {
-      alert('الرجاء إدخال الاسم الكامل واسم الأم للمتوفى');
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const res = await fetch('/api/prayer/deceased', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          deceasedName: deceasedForm.fullName,
-          deceasedMotherName: deceasedForm.motherName,
-          relation: deceasedForm.relation
-        })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert('تم إرسال طلب الدعاء للمتوفى إن شاء الله');
-        setShowDeceasedForm(false);
-        setDeceasedForm({ fullName: '', motherName: '', relation: '' });
-        window.location.reload();
-      } else {
-        alert(data.error || 'حدث خطأ');
-      }
-    } catch (error) {
-      console.error('Deceased prayer error:', error);
-      alert('حدث خطأ أثناء إرسال الطلب');
-    }
-  };
-
-  // ============================================================================
-  // 🏥 طلب دعاء للمريض
-  // ============================================================================
-  const handleSickPrayer = async () => {
-    if (!sickForm.isPrivate && (!sickForm.fullName || !sickForm.motherName)) {
-      alert('الرجاء إدخال اسم المريض واسم والدته، أو اختر "اسم خاص"');
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const res = await fetch('/api/prayer/sick', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sickPersonName: sickForm.fullName,
-          sickPersonMotherName: sickForm.motherName,
-          isNamePrivate: sickForm.isPrivate
-        })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert('تم إرسال طلب الدعاء للمريض إن شاء الله');
-        setShowSickForm(false);
-        setSickForm({ fullName: '', motherName: '', isPrivate: false });
-        window.location.reload();
-      } else {
-        alert(data.error || 'حدث خطأ');
-      }
-    } catch (error) {
-      console.error('Sick prayer error:', error);
-      alert('حدث خطأ أثناء إرسال الطلب');
-    }
-  };
-
-  // ============================================================================
-  // 🙏 الدعاء لطلب معين
+  // � الدعاء لطلب معين
   // ============================================================================
   const handlePray = async (requestId) => {
     const token = localStorage.getItem('token');
@@ -404,36 +279,6 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
     } catch (error) {
       console.error('Prayer error:', error);
       alert('حدث خطأ أثناء حفظ الدعاء');
-    }
-  };
-
-  // ============================================================================
-  // 🌍 دعاء جماعي
-  // ============================================================================
-  const handleCollectivePrayer = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const res = await fetch('/api/prayer/collective', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message: null })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert(data.message || 'تم إرسال دعاءك لكل المؤمنين! جزاك الله خيراً 🌍');
-      } else {
-        alert(data.error || 'حدث خطأ');
-      }
-    } catch (error) {
-      console.error('Collective prayer error:', error);
-      alert('حدث خطأ');
     }
   };
 
@@ -473,36 +318,6 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
       }
     } catch (error) {
       console.error('Private prayer error:', error);
-      alert('حدث خطأ');
-    }
-  };
-
-  // ============================================================================
-  // 💬 رد فعل
-  // ============================================================================
-  const handleReact = async (requestId, reactionType) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const res = await fetch('/api/reactions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ requestId, reactionType })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert(data.message || 'تم إرسال رد الفعل');
-      } else {
-        alert(data.error || 'حدث خطأ');
-      }
-    } catch (error) {
-      console.error('Reaction error:', error);
       alert('حدث خطأ');
     }
   };
@@ -557,7 +372,6 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         user={user}
         currentPage="home"
         onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
         onLogout={onLogout}
       />
 
@@ -581,228 +395,19 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
           </p>
         </div>
 
-        {/* 🚀 أزرار الطلب */}
-        <div className="grid grid-cols-1 gap-4">
-          
-          {/* زر طلب دعاء عام */}
-          {prayerLimit.canRequest ? (
-            <button
-              onClick={handleRequestPrayer}
-              className="bg-emerald-600 hover:bg-emerald-700 hover:shadow-lg text-white p-8 rounded-xl transition-all transform hover:scale-[1.02]"
-            >
-              <div className="text-center">
-                <div className="text-4xl mb-3">🤲</div>
-                <h3 className="text-2xl font-bold mb-2">احتاج دعاءكم</h3>
-                <p className="text-lg opacity-90">
-                  احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
-                </p>
-              </div>
-            </button>
-          ) : (
-            <div className="bg-emerald-600 opacity-60 text-white p-8 rounded-xl">
-              <div className="text-center">
-                <div className="text-4xl mb-3">🤲</div>
-                <h3 className="text-2xl font-bold mb-2">احتاج دعاءكم</h3>
-                <p className="text-lg opacity-90 mb-4">
-                  احتفظ بحاجتك في قلبك ودع المؤمنين يشاركونك الدعاء
-                </p>
-                <CountdownTimer 
-                  targetTimestamp={prayerLimit.nextAllowedAt}
-                  onComplete={() => setPrayerLimit({...prayerLimit, canRequest: true})}
-                  label="يمكنك طلب دعاء جديد بعد"
-                />
-              </div>
-            </div>
-          )}
+        {/* 🎯 خيارات الدعاء - البطاقات الأربعة */}
+        <PrayerOptions 
+          onSelectOption={(type) => setOpenModal(type)}
+          userStats={stats}
+        />
 
-          {/* زر طلب دعاء للمتوفى */}
-          {deceasedLimit.canRequest ? (
-            <button
-              onClick={() => setShowDeceasedForm(true)}
-              className="bg-stone-600 hover:bg-stone-700 hover:shadow-lg text-white p-8 rounded-xl transition-all transform hover:scale-[1.02]"
-            >
-              <div className="text-center">
-                <div className="text-4xl mb-3">🕊️</div>
-                <h3 className="text-2xl font-bold mb-2">ادعوا لمتوفٍ عزيز</h3>
-                <p className="text-lg opacity-90">
-                  ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
-                </p>
-              </div>
-            </button>
-          ) : (
-            <div className="bg-stone-600 opacity-60 text-white p-8 rounded-xl">
-              <div className="text-center">
-                <div className="text-4xl mb-3">🕊️</div>
-                <h3 className="text-2xl font-bold mb-2">ادعوا لمتوفٍ عزيز</h3>
-                <p className="text-lg opacity-90 mb-4">
-                  ادعُ لروح من فارقنا واطلب من المؤمنين الدعاء له
-                </p>
-                <CountdownTimer 
-                  targetTimestamp={deceasedLimit.nextAllowedAt}
-                  onComplete={() => setDeceasedLimit({...deceasedLimit, canRequest: true})}
-                  label="يمكنك طلب دعاء جديد بعد"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* زر طلب دعاء للمريض */}
-          {sickLimit.canRequest ? (
-            <button
-              onClick={() => setShowSickForm(true)}
-              className="bg-red-600 hover:bg-red-700 hover:shadow-lg text-white p-8 rounded-xl transition-all transform hover:scale-[1.02]"
-            >
-              <div className="text-center">
-                <div className="text-4xl mb-3">🏥</div>
-                <h3 className="text-2xl font-bold mb-2">ادعوا لمريض</h3>
-                <p className="text-lg opacity-90">
-                  اطلب الدعاء لمريض (مع خيار إخفاء الاسم)
-                </p>
-              </div>
-            </button>
-          ) : (
-            <div className="bg-red-600 opacity-60 text-white p-8 rounded-xl">
-              <div className="text-center">
-                <div className="text-4xl mb-3">🏥</div>
-                <h3 className="text-2xl font-bold mb-2">ادعوا لمريض</h3>
-                <p className="text-lg opacity-90 mb-4">
-                  اطلب الدعاء لمريض (مع خيار إخفاء الاسم)
-                </p>
-                <CountdownTimer 
-                  targetTimestamp={sickLimit.nextAllowedAt}
-                  onComplete={() => setSickLimit({...sickLimit, canRequest: true})}
-                  label="يمكنك طلب دعاء جديد بعد"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 🕊️ نموذج المتوفى */}
-        {showDeceasedForm && (
-          <div className="bg-white p-8 rounded-xl border-2 border-stone-200 shadow-lg">
-            <h3 className="text-2xl font-bold text-stone-800 mb-6 text-center">
-              الدعاء لمن فارقنا
-            </h3>
-            
-            <div className="space-y-5">
-              <input
-                type="text"
-                value={deceasedForm.fullName}
-                onChange={(e) => setDeceasedForm({...deceasedForm, fullName: e.target.value})}
-                placeholder="الاسم الكامل للمتوفى"
-                className="w-full px-5 py-4 text-lg border-2 border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
-              />
-              
-              <input
-                type="text"
-                value={deceasedForm.motherName}
-                onChange={(e) => setDeceasedForm({...deceasedForm, motherName: e.target.value})}
-                placeholder="اسم والدة المتوفى"
-                className="w-full px-5 py-4 text-lg border-2 border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
-              />
-              
-              <div>
-                <label className="block text-stone-700 font-bold mb-3 text-lg">
-                  صلة القرابة (اختياري)
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {['أب', 'أم', 'أخ', 'أخت', 'صديق', 'قريب'].map(rel => (
-                    <button
-                      key={rel}
-                      onClick={() => setDeceasedForm({...deceasedForm, relation: rel})}
-                      className={`py-3 px-4 rounded-lg text-lg font-semibold transition-all ${
-                        deceasedForm.relation === rel
-                          ? 'bg-emerald-600 text-white shadow-md'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                      }`}
-                    >
-                      {rel}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleDeceasedPrayer}
-                  className="flex-1 bg-stone-600 hover:bg-stone-700 text-white py-4 rounded-lg text-xl font-bold transition-colors shadow-md hover:shadow-lg"
-                >
-                  إرسال طلب الدعاء
-                </button>
-                <button
-                  onClick={() => setShowDeceasedForm(false)}
-                  className="px-8 bg-stone-200 hover:bg-stone-300 text-stone-700 py-4 rounded-lg text-xl font-bold transition-colors"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 🏥 نموذج المريض */}
-        {showSickForm && (
-          <div className="bg-white p-8 rounded-xl border-2 border-stone-200 shadow-lg">
-            <h3 className="text-2xl font-bold text-stone-800 mb-6 text-center">
-              الدعاء للمريض
-            </h3>
-            
-            <div className="space-y-5">
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sickForm.isPrivate}
-                    onChange={(e) => setSickForm({...sickForm, isPrivate: e.target.checked})}
-                    className="w-5 h-5"
-                  />
-                  <span className="text-lg text-stone-700 font-semibold">
-                    اسم خاص (لا يُعرض الاسم للمؤمنين)
-                  </span>
-                </label>
-              </div>
-
-              {!sickForm.isPrivate && (
-                <>
-                  <input
-                    type="text"
-                    value={sickForm.fullName}
-                    onChange={(e) => setSickForm({...sickForm, fullName: e.target.value})}
-                    placeholder="اسم المريض"
-                    className="w-full px-5 py-4 text-lg border-2 border-stone-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                  />
-                  
-                  <input
-                    type="text"
-                    value={sickForm.motherName}
-                    onChange={(e) => setSickForm({...sickForm, motherName: e.target.value})}
-                    placeholder="اسم والدة المريض"
-                    className="w-full px-5 py-4 text-lg border-2 border-stone-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                  />
-                </>
-              )}
-              
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleSickPrayer}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg text-xl font-bold transition-colors shadow-md hover:shadow-lg"
-                >
-                  إرسال طلب الدعاء
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSickForm(false);
-                    setSickForm({ fullName: '', motherName: '', isPrivate: false });
-                  }}
-                  className="px-8 bg-stone-200 hover:bg-stone-300 text-stone-700 py-4 rounded-lg text-xl font-bold transition-colors"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 🕌 نافذة طلب الدعاء */}
+        <PrayerModal
+          isOpen={openModal !== null}
+          type={openModal}
+          onClose={() => setOpenModal(null)}
+          onSubmit={handlePrayerSubmit}
+        />
 
         {/* 📊 إحصائية شخصية */}
         {stats && (
@@ -818,20 +423,6 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         {/* 🏆 أفضل مستخدم أسبوعياً */}
         {topWeeklyUser && (
           <TopWeeklyUser topUser={topWeeklyUser} />
-        )}
-
-        {/* 🌍 دعاء جماعي */}
-        {canCollective && (
-          <button
-            onClick={handleCollectivePrayer}
-            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-8 rounded-xl transition-all hover:shadow-2xl w-full transform hover:scale-[1.02]"
-          >
-            <div className="text-center">
-              <div className="text-4xl mb-3">🌍</div>
-              <h3 className="text-2xl font-bold mb-2">ادعُ لكل المؤمنين</h3>
-              <p className="text-lg opacity-90">ميزة التوثيق المتقدم 🟢</p>
-            </div>
-          </button>
         )}
 
         {/* ⭐ دعاء خاص */}
@@ -869,14 +460,13 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
             </button>
           </div>
         )}
-
         {/* 🤲 قسم طلبات الدعاء */}
         <div className="bg-white rounded-2xl border-2 border-stone-200 overflow-hidden shadow-lg">
           
           {/* Header */}
           <div className="bg-emerald-600 p-6 text-center border-b-4 border-emerald-700">
             <h2 className="text-white font-bold text-3xl">
-              🙏 طلبات الدعاء الجماعي
+              � طلبات الدعاء الجماعي
             </h2>
           </div>
 
@@ -955,69 +545,15 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
             </div>
           ) : (
             <>
-              {/* عرض الطلبات */}
-              <div className="divide-y-2 divide-stone-100">
-                {displayedRequests.map(request => {
-                  const typeConfig = {
-                    deceased: { icon: '🕊️', bgColor: 'bg-stone-600', hoverColor: 'hover:bg-stone-700' },
-                    sick: { icon: '🏥', bgColor: 'bg-red-600', hoverColor: 'hover:bg-red-700' },
-                    general: { icon: '🤲', bgColor: 'bg-emerald-600', hoverColor: 'hover:bg-emerald-700' }
-                  };
-                  const config = typeConfig[request.type] || typeConfig.general;
-                  const userColors = getUniqueColorForUser(request.userId, request.displayName);
-
-                  return (
-                    <div 
-                      key={request.id} 
-                      className={`p-8 hover:bg-stone-50 transition-all border-l-8 ${userColors.border} ${userColors.bg}`}
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-3xl">{config.icon}</span>
-                            <h4 className={`font-bold text-2xl ${userColors.accent}`}>
-                              {request.displayName}
-                            </h4>
-                            {request.verificationLevel && (
-                              <VerificationBadge level={request.verificationLevel} size="md" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-lg text-stone-600 mb-3 font-semibold">
-                            <span>⏰ {getTimeAgo(request.timestamp)}</span>
-                            <span>•</span>
-                            <span>❤️ دعا له {request.prayerCount}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {!request.hasPrayed ? (
-                        <button
-                          onClick={() => handlePray(request.id)}
-                          className={`w-full h-14 rounded-xl text-xl font-bold transition-all transform hover:scale-[1.02] shadow-md hover:shadow-lg text-white ${config.bgColor} ${config.hoverColor}`}
-                        >
-                          خذ لحظة وادعُ {request.type === 'deceased' ? 'له' : request.type === 'sick' ? 'له' : `لـ ${request.displayName.split(' ')[0]}`} 🤲
-                        </button>
-                      ) : (
-                        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-5 text-center">
-                          <p className="text-emerald-700 font-bold text-xl">✓ دعوت له - جزاك الله خيراً</p>
-                        </div>
-                      )}
-
-                      {request.userId === user?.id && (
-                        <div className="mt-5 pt-5 border-t-2 border-stone-200">
-                          <p className="text-lg text-stone-600 mb-3 font-semibold">
-                            {request.prayerCount} شخص دعا لك
-                          </p>
-                          <ReactionButtons 
-                            requestId={request.id}
-                            currentUserReaction={null}
-                            onReact={handleReact}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {/* عرض الطلبات باستخدام PrayerCard */}
+              <div className="p-5 space-y-12">
+                {displayedRequests.map(request => (
+                  <PrayerCard
+                    key={request.id}
+                    request={request}
+                    onPray={handlePray}
+                  />
+                ))}
               </div>
 
               {/* زر Load More */}
@@ -1029,7 +565,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
                   >
                     <div className="text-center">
                       <p className="text-xl font-bold mb-1">
-                        📄 عرض 10 طلبات أخرى ⬇️
+                        🔄 عرض 10 طلبات أخرى ⬇️
                       </p>
                       <p className="text-base opacity-90">
                         (يوجد {remainingRequests} {remainingRequests === 1 ? 'طلب متبقي' : remainingRequests === 2 ? 'طلبان متبقيان' : 'طلبات متبقية'})
@@ -1102,7 +638,6 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
             </>
           )}
         </div>
-
         {/* 🌟 قسم التقييم */}
         <RatingSystem />
 
@@ -1134,7 +669,7 @@ export default function HomePage({ user, onNavigate, onEditProfile, onLogout }) 
         {/* 📤 زر المشاركة */}
         <ShareButton 
           title="منصة الدعاء الجماعي"
-          text="ادعُ واطلب الدعاء من آلاف المؤمنين حول العالم 🤲"
+          text="ادع واطلب الدعاء من آلاف المؤمنين حول العالم 🤲"
           url="https://yojeeb.com"
         />
 

@@ -1,0 +1,95 @@
+# DUA PLATFORM - COMPLETE BRIEF
+Generated: 2025-10-15 03:23
+
+═══════════════════════════════════════
+TECH STACK
+═══════════════════════════════════════
+Next.js 14 | PostgreSQL | Prisma | JWT | Tailwind | PWA
+
+═══════════════════════════════════════
+API ROUTES (27 endpoints)
+═══════════════════════════════════════
+/api/admin/requests /api/admin/settings /api/admin/stats /api/admin/users /api/auth/check-unique /api/auth/check-uniqueness /api/auth/login /api/auth/register /api/auth/verify-phone /api/cron/send-notifications /api/notifications/send /api/prayer /api/prayer-request /api/prayer-request/check-limit /api/prayer/collective /api/prayer/deceased /api/prayer/private /api/prayer/sick /api/reactions /api/reviews /api/send-notification /api/settings/banner /api/subscriptions /api/tracking/share /api/users/active /api/users/stats /api/users/top-weekly
+
+═══════════════════════════════════════
+COMPONENTS (37 files)
+═══════════════════════════════════════
+Pages: AboutPage AchievementsPage AdminPage FAQPage HomePage LandingPage LoginPage RegisterPage StatsPage
+Shared: CountdownTimer InstallPrompt IslamicBanner LandingPage LoginPage MenuBar PhoneInput PrayerCard PrayerRequestCard ReactionButtons ReviewPrompt ShareButton TopWeeklyUser UniqueQuestionPicker VerificationBadge
+Sections: 
+
+═══════════════════════════════════════
+DATABASE MODELS
+═══════════════════════════════════════
+No schema
+
+═══════════════════════════════════════
+KEY FILES TO MODIFY (From Plan)
+═══════════════════════════════════════
+CREATE:
+- lib/quranQuotes.js
+- lib/countries.js
+- components/shared/PhoneInput.js
+- components/shared/PrayerModal.js
+- components/shared/PrayerCard.js
+- components/sections/PrayerOptions.js
+- components/pages/ProfileInfoPage.js
+- app/api/prayer/collective/route.js
+
+UPDATE:
+- components/constants/messages.js (TOTAL_USERS → 0)
+- components/RatingSystem.js (complete redesign)
+- components/shared/VerificationBadge.js (Twitter style)
+- components/shared/MenuBar.js (add profile menu)
+- components/pages/HomePage.js (major update)
+- app/api/prayer-request/route.js (remove notifications)
+- app/api/prayer/route.js (remove notifications)
+- lib/notifications.js (collective only)
+- app/globals.css (animations)
+- prisma/schema.prisma (add models)
+
+DELETE:
+- components/shared/ReactionButtons.js
+
+DO NOT TOUCH:
+- Stats section/page
+- Achievements section/page  
+- About page
+- FAQ page
+- Any other existing feature not mentioned
+
+═══════════════════════════════════════
+CURRENT STATE FLAGS
+═══════════════════════════════════════
+Total Users: 12847
+Has RatingSystem: True
+Has ReactionButtons: True
+Has MenuBar: True
+
+═══════════════════════════════════════
+IMPLEMENTATION PHASES (10 Total)
+═══════════════════════════════════════
+1. Core Components & Constants
+2. Shared Components (Phone, Modal, Card)
+3. Rating System Redesign
+4. Notification System Overhaul
+5. Menu & Profile Page
+6. Home Page Redesign
+7. API Routes Updates
+8. Styling & Globals
+9. Database Schema Updates
+10. Testing & Validation
+
+═══════════════════════════════════════
+KEY REQUIREMENTS
+═══════════════════════════════════════
+- RTL Arabic interface
+- Quranic quotes throughout
+- Prayer types: General, Sick, Deceased, Collective
+- Verification: Blue 80%, Gold 90%, Green 98%
+- No notifications except Collective Prayer & Admin
+- Phone input: International with country selector
+- Rating: Start at 0.0, 5 stars, honest
+- Cards: 50px gap, auto-hide after prayer
+- Sick cards: Show as "مريض يطلب دعاءكم"
+

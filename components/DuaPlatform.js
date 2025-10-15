@@ -28,7 +28,8 @@ export default function DuaPlatform() {
   // ===============================================
 
   // التنقل بين الصفحات
-  const [currentPage, setCurrentPage] = useState('landing');
+  const [currentPage, setCurrentPage] = useState('home');
+
 
   // بيانات المستخدم
   const [user, setUser] = useState(null);
@@ -203,12 +204,8 @@ export default function DuaPlatform() {
   // 🎨 عرض الصفحة المناسبة (Page Rendering)
   // ===============================================
 
-  // صفحة الهبوط
-  if (currentPage === 'landing') {
-    return <LandingPage onStart={() => setCurrentPage('register')} />;
-  }
-
-  // صفحة تسجيل الدخول
+  
+    // صفحة تسجيل الدخول
   if (currentPage === 'login') {
     return (
       <LoginPage

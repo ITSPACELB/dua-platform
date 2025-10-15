@@ -54,4 +54,4 @@ export const blessingsExample = [
 ];
 
 // 📊 إحصائيات عامة
-export const TOTAL_USERS = 12847;
+export const TOTAL_USERS = 0;
