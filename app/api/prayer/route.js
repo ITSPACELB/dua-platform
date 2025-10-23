@@ -1,131 +1,190 @@
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import jwt from 'jsonwebtoken';
+import { NextResponse } from 'next/server'
+import {
+  createPrayerRequest,
+  getActiveRequests,
+  getActiveRequestsCount,
+  recordPrayer,
+  hasUserPrayed,
+  getUserById,
+  createUser,
+  getUserByFingerprint,
+} from '@/lib/queries'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// ═══════════════════════════════════════════════════════════
+// GET - الحصول على طلبات الدعاء النشطة
+// ═══════════════════════════════════════════════════════════
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const limit = parseInt(searchParams.get('limit')) || 50
+    const offset = parseInt(searchParams.get('offset')) || 0
 
-function verifyToken(request) {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return null;
-    }
-    const token = authHeader.substring(7);
-    try {
-        return jwt.verify(token, JWT_SECRET);
-    } catch (error) {
-        return null;
-    }
+    const requests = await getActiveRequests(limit, offset)
+    const totalCount = await getActiveRequestsCount()
+
+    return NextResponse.json({
+      success: true,
+      requests,
+      totalCount,
+      hasMore: offset + requests.length < totalCount,
+    })
+  } catch (error) {
+    console.error('خطأ في جلب الطلبات:', error)
+    return NextResponse.json(
+      { success: false, error: 'فشل جلب الطلبات' },
+      { status: 500 }
+    )
+  }
 }
 
-// ============================================================================
-// 📤 POST - حفظ دعاء لطلب معين
-// ============================================================================
+// ═══════════════════════════════════════════════════════════
+// POST - إنشاء طلب دعاء جديد أو تسجيل دعاء
+// ═══════════════════════════════════════════════════════════
 export async function POST(request) {
-    try {
-        const decoded = verifyToken(request);
-        if (!decoded) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
-        }
+  try {
+    const body = await request.json()
+    const { action } = body
 
-        const { requestId } = await request.json();
-
-        if (!requestId) {
-            return NextResponse.json(
-                { error: 'معرّف الطلب مطلوب' },
-                { status: 400 }
-            );
-        }
-
-        // فحص إذا كان الطلب موجود ونشط
-        const requestCheck = await query(
-            `SELECT id, user_id, status 
-             FROM prayer_requests 
-             WHERE id = $1`,
-            [requestId]
-        );
-
-        if (requestCheck.rows.length === 0) {
-            return NextResponse.json(
-                { error: 'الطلب غير موجود' },
-                { status: 404 }
-            );
-        }
-
-        const prayerRequest = requestCheck.rows[0];
-
-        if (prayerRequest.status !== 'active') {
-            return NextResponse.json(
-                { error: 'هذا الطلب لم يعد نشطاً' },
-                { status: 400 }
-            );
-        }
-
-        // منع المستخدم من الدعاء لنفسه
-        if (prayerRequest.user_id === decoded.userId) {
-            return NextResponse.json(
-                { error: 'لا يمكنك الدعاء لطلبك الخاص' },
-                { status: 400 }
-            );
-        }
-
-        // محاولة حفظ الدعاء (UNIQUE constraint يمنع التكرار)
-        try {
-            await query(
-                `INSERT INTO prayers (request_id, user_id, prayed_at)
-                 VALUES ($1, $2, NOW())`,
-                [requestId, decoded.userId]
-            );
-
-            // الحصول على الإحصائيات المحدثة
-            const statsResult = await query(
-                `SELECT 
-                    total_prayers_given,
-                    total_notifications_received,
-                    interaction_rate
-                 FROM user_stats 
-                 WHERE user_id = $1`,
-                [decoded.userId]
-            );
-
-            const stats = statsResult.rows[0];
-
-            // حساب مستوى التوثيق
-            const interactionRate = stats?.interaction_rate || 0;
-            let verificationLevel = { name: 'NONE', color: 'stone', icon: '', threshold: 0 };
-            
-            if (interactionRate >= 98) {
-                verificationLevel = { name: 'GOLD', color: 'amber', icon: '👑', threshold: 98 };
-            } else if (interactionRate >= 90) {
-                verificationLevel = { name: 'GREEN', color: 'emerald', icon: '✓✓', threshold: 90 };
-            } else if (interactionRate >= 80) {
-                verificationLevel = { name: 'BLUE', color: 'blue', icon: '✓', threshold: 80 };
-            }
-
-            return NextResponse.json({
-                success: true,
-                message: 'جزاك الله خيراً',
-                stats: {
-                    totalPrayersGiven: stats?.total_prayers_given || 0,
-                    interactionRate,
-                    verificationLevel
-                }
-            });
-
-        } catch (error) {
-            if (error.code === '23505') { // UNIQUE constraint violation
-                return NextResponse.json(
-                    { error: 'لقد دعوت لهذا الطلب من قبل' },
-                    { status: 400 }
-                );
-            }
-            throw error;
-        }
-
-    } catch (error) {
-        console.error('Prayer save error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء حفظ الدعاء' },
-            { status: 500 }
-        );
+    if (action === 'create_request') {
+      return await handleCreateRequest(body)
+    } else if (action === 'record_prayer') {
+      return await handleRecordPrayer(body)
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Action غير صحيح' },
+        { status: 400 }
+      )
     }
+  } catch (error) {
+    console.error('خطأ في API الدعوات:', error)
+    return NextResponse.json(
+      { success: false, error: 'حدث خطأ في الخادم' },
+      { status: 500 }
+    )
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// دالة إنشاء طلب دعاء جديد
+// ═══════════════════════════════════════════════════════════
+async function handleCreateRequest(body) {
+  const {
+    deviceFingerprint,
+    type, // personal, friend, deceased, sick
+    name,
+    motherOrFatherName,
+    purpose,
+    customVerse,
+    isSecondRequest,
+  } = body
+
+  // التحقق من الحقول المطلوبة
+  if (!deviceFingerprint || !type) {
+    return NextResponse.json(
+      { success: false, error: 'بيانات ناقصة' },
+      { status: 400 }
+    )
+  }
+
+  // الحصول على المستخدم أو إنشاء واحد جديد
+  let user = await getUserByFingerprint(deviceFingerprint)
+  
+  if (!user) {
+    user = await createUser({
+      fullName: name || null,
+      motherOrFatherName: motherOrFatherName || null,
+      deviceFingerprint,
+    })
+  }
+
+  // التحقق من الحد اليومي (إلا إذا كان طلب ثاني للمميزين)
+  if (!isSecondRequest) {
+    // التحقق من آخر طلب للمستخدم
+    const lastRequest = await getLastUserRequest(user.id)
+    if (lastRequest) {
+      const hoursSinceLastRequest = (Date.now() - new Date(lastRequest.created_at)) / (1000 * 60 * 60)
+      if (hoursSinceLastRequest < 24) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'يمكنك طلب الدعاء مرة واحدة كل 24 ساعة',
+            nextAllowedTime: new Date(new Date(lastRequest.created_at).getTime() + 24 * 60 * 60 * 1000),
+          },
+          { status: 429 }
+        )
+      }
+    }
+  }
+
+  // إنشاء الطلب
+  const newRequest = await createPrayerRequest({
+    userId: user.id,
+    type,
+    name,
+    motherOrFatherName,
+    purpose,
+    customVerse,
+    isSecondRequest: isSecondRequest || false,
+  })
+
+  return NextResponse.json({
+    success: true,
+    request: newRequest,
+    message: 'تم إرسال طلبك! سيصل إشعار للمؤمنين إن شاء الله',
+  })
+}
+
+// ═══════════════════════════════════════════════════════════
+// دالة تسجيل دعاء
+// ═══════════════════════════════════════════════════════════
+async function handleRecordPrayer(body) {
+  const { deviceFingerprint, requestId } = body
+
+  if (!deviceFingerprint || !requestId) {
+    return NextResponse.json(
+      { success: false, error: 'بيانات ناقصة' },
+      { status: 400 }
+    )
+  }
+
+  // الحصول على المستخدم أو إنشاء واحد جديد
+  let user = await getUserByFingerprint(deviceFingerprint)
+  
+  if (!user) {
+    user = await createUser({ deviceFingerprint })
+  }
+
+  // التحقق إذا المستخدم دعا مسبقاً لهذا الطلب
+  const alreadyPrayed = await hasUserPrayed(user.id, requestId)
+  
+  if (alreadyPrayed) {
+    return NextResponse.json(
+      { success: false, error: 'لقد دعوت لهذا الطلب مسبقاً' },
+      { status: 400 }
+    )
+  }
+
+  // تسجيل الدعاء
+  const prayer = await recordPrayer(user.id, requestId)
+
+  return NextResponse.json({
+    success: true,
+    prayer,
+    message: 'جزاك الله خيراً - تم تسجيل دعائك',
+  })
+}
+
+// ═══════════════════════════════════════════════════════════
+// دالة مساعدة للحصول على آخر طلب للمستخدم
+// ═══════════════════════════════════════════════════════════
+async function getLastUserRequest(userId) {
+  const { query } = await import('@/lib/db')
+  const text = `
+    SELECT * FROM prayer_requests
+    WHERE user_id = $1
+    ORDER BY created_at DESC
+    LIMIT 1
+  `
+  const result = await query(text, [userId])
+  return result.rows[0] || null
 }

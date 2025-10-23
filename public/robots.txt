@@ -1,6 +1,44 @@
+# robots.txt - منصة يُجيب للدعاء الجماعي
+# https://yojeeb.com
+
+# السماح لجميع محركات البحث
 User-agent: *
 Allow: /
-Disallow: /api/
-Disallow: /admin/
 
-Sitemap: https://dua-platform.com/sitemap.xml
+# منع الفهرسة للصفحات الإدارية والخاصة
+Disallow: /admin
+Disallow: /api/
+Disallow: /admin/*
+Disallow: /_next/
+Disallow: /static/
+
+# السماح بملفات CSS و JS
+Allow: /*.css$
+Allow: /*.js$
+
+# السماح بالصور
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.png$
+Allow: /*.gif$
+Allow: /*.webp$
+Allow: /*.svg$
+
+# Sitemap
+Sitemap: https://yojeeb.com/sitemap.xml
+
+# محركات بحث محددة
+# Googlebot
+User-agent: Googlebot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+# Bingbot
+User-agent: Bingbot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+# معدل الزحف (اختياري)
+Crawl-delay: 1

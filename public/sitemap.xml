@@ -1,21 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- الصفحة الرئيسية -->
   <url>
-    <loc>https://dua-platform.com/</loc>
-    <lastmod>2025-01-09</lastmod>
+    <loc>https://yojeeb.com/</loc>
+    <lastmod>2025-10-23</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+
+  <!-- صفحة من نحن -->
   <url>
-    <loc>https://dua-platform.com/about</loc>
-    <lastmod>2025-01-09</lastmod>
+    <loc>https://yojeeb.com/about</loc>
+    <lastmod>2025-10-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+
+  <!-- صفحة المكتبة -->
   <url>
-    <loc>https://dua-platform.com/faq</loc>
-    <lastmod>2025-01-09</lastmod>
+    <loc>https://yojeeb.com/library</loc>
+    <lastmod>2025-10-23</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- صفحة الأسئلة الشائعة -->
+  <url>
+    <loc>https://yojeeb.com/faq</loc>
+    <lastmod>2025-10-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
+
+  <!-- صفحة الإحصائيات -->
+  <url>
+    <loc>https://yojeeb.com/stats</loc>
+    <lastmod>2025-10-23</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- صفحة التواصل -->
+  <url>
+    <loc>https://yojeeb.com/contact</loc>
+    <lastmod>2025-10-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
 </urlset>

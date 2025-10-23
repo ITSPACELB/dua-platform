@@ -2,60 +2,275 @@
 @tailwind components;
 @tailwind utilities;
 
-/* خطوط عربية */
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+/* ============================================================================ */
+/* 🎨 الخط العربي - Markazi Text (المرحلة 10) */
+/* ============================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Markazi+Text:wght@400;500;600;700&display=swap');
 
+/* ============================================================================ */
+/* 🌐 الإعدادات العامة */
+/* ============================================================================ */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+:root {
+  /* ألوان المشروع */
+  --color-primary: #16a34a;
+  --color-primary-dark: #15803d;
+  --color-secondary: #0891b2;
+  --color-accent: #f59e0b;
+  
+  /* الخطوط */
+  --font-arabic: 'Markazi Text', 'Cairo', 'Traditional Arabic', serif;
+  
+  /* المسافات */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  
+  /* الظلال */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  
+  /* الزوايا */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+}
+
+/* ============================================================================ */
+/* 📱 الجسم الرئيسي */
+/* ============================================================================ */
 body {
-  font-family: 'Cairo', 'Traditional Arabic', Arial, sans-serif;
+  font-family: var(--font-arabic);
   direction: rtl;
   text-align: right;
-}
-
-/* تحسين النصوص العربية */
-body {
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+  color: #1f2937;
+  line-height: 1.75;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* إخفاء scrollbar في بعض المتصفحات */
+/* ============================================================================ */
+/* ✨ الرسوم المتحركة (Animations) */
+/* ============================================================================ */
+
+/* تأثير الظهور التدريجي */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* تأثير التكبير */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* تأثير الانزلاق من اليمين */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* تأثير الانزلاق من اليسار */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* تأثير النبض */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* تأثير التوهج */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(22, 163, 74, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(22, 163, 74, 0.6);
+  }
+}
+
+/* تأثير الاهتزاز الخفيف */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* تأثير الدوران */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* تأثير النبض للإشعارات */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ============================================================================ */
+/* 🎨 Classes للرسوم المتحركة */
+/* ============================================================================ */
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.4s ease-out forwards;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.4s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.animate-spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+.animate-bounce-slow {
+  animation: bounce 2s ease-in-out infinite;
+}
+
+/* ============================================================================ */
+/* 📜 Scrollbar المخصص */
+/* ============================================================================ */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f1f5f9;
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: linear-gradient(180deg, #16a34a, #15803d);
+  border-radius: 10px;
+  border: 2px solid #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: linear-gradient(180deg, #15803d, #166534);
 }
 
-/* تحسين الأزرار على الموبايل */
+/* Firefox Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #16a34a #f1f5f9;
+}
+
+/* ============================================================================ */
+/* 🔘 تحسين الأزرار */
+/* ============================================================================ */
 button {
   -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  font-family: var(--font-arabic);
 }
 
-/* تحسين الإدخالات على iOS */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* ============================================================================ */
+/* 📝 تحسين الإدخالات (Inputs) */
+/* ============================================================================ */
 input,
-textarea {
+textarea,
+select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-arabic);
+  transition: all 0.2s ease;
 }
 
-/* منع التكبير على iOS عند التركيز على input */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+}
+
+/* منع التكبير على iOS عند التركيز */
 @media screen and (max-width: 768px) {
   input,
   textarea,
@@ -64,9 +279,241 @@ textarea {
   }
 }
 
-/* تحسين الانتقالات */
+/* ============================================================================ */
+/* 🎯 تحسين الروابط */
+/* ============================================================================ */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--color-primary-dark);
+}
+
+/* ============================================================================ */
+/* 🖼️ تحسين الصور */
+/* ============================================================================ */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================================================ */
+/* 💫 تأثيرات الانتقالات العامة */
+/* ============================================================================ */
 * {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-property: background-color, border-color, color, fill, stroke, 
+                       opacity, box-shadow, transform, filter;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+  transition-duration: 200ms;
+}
+
+/* ============================================================================ */
+/* 🌙 الوضع الليلي (اختياري للمستقبل) */
+/* ============================================================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1f2937;
+    --color-text: #f9fafb;
+  }
+  
+  /* يمكن إضافة المزيد من متغيرات الوضع الليلي هنا */
+}
+
+/* ============================================================================ */
+/* 📱 تحسينات الموبايل */
+/* ============================================================================ */
+@media (max-width: 768px) {
+  body {
+    font-size: 16px;
+  }
+  
+  /* تحسين المسافات على الموبايل */
+  :root {
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.375rem;
+    --spacing-md: 0.75rem;
+    --spacing-lg: 1rem;
+    --spacing-xl: 1.5rem;
+  }
+}
+
+/* ============================================================================ */
+/* 🎨 Utility Classes إضافية */
+/* ============================================================================ */
+
+/* نص متدرج */
+.gradient-text {
+  background: linear-gradient(135deg, #16a34a, #0891b2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* خلفية زجاجية */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ظل ملون */
+.colored-shadow {
+  box-shadow: 0 10px 30px -5px rgba(22, 163, 74, 0.3);
+}
+
+/* تأثير الرفع عند التمرير */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* نص محمي من السبام */
+.protected-email {
+  unicode-bidi: bidi-override;
+  direction: rtl;
+}
+
+/* ============================================================================ */
+/* ✨ تأثيرات خاصة للمنصة */
+/* ============================================================================ */
+
+/* تأثير البطاقة الإسلامية */
+.islamic-card {
+  border: 2px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(135deg, #16a34a, #0891b2) border-box;
+  border-radius: var(--radius-xl);
+}
+
+/* تأثير النجوم للمستويات */
+.star-glow {
+  filter: drop-shadow(0 0 8px rgba(234, 179, 8, 0.6));
+}
+
+/* تأثير الإشعار */
+.notification-badge {
+  animation: pulse 1s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+/* خط اليد للآيات */
+.verse-text {
+  font-size: 1.5rem;
+  line-height: 2;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================================================ */
+/* 🔄 Loading Spinner */
+/* ============================================================================ */
+.loading-spinner {
+  border: 3px solid rgba(22, 163, 74, 0.1);
+  border-top-color: #16a34a;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================================================ */
+/* 🎭 تأثيرات التفاعل */
+/* ============================================================================ */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.ripple:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* ============================================================================ */
+/* 🌟 تحسين الأداء */
+/* ============================================================================ */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+/* تحسين الرسومات المتحركة */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================================ */
+/* 📐 Grid خاص للمنصة */
+/* ============================================================================ */
+.prayer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .prayer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================ */
+/* 🎨 الخلفيات المتدرجة */
+/* ============================================================================ */
+.gradient-primary {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+}
+
+.gradient-secondary {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.gradient-islamic {
+  background: linear-gradient(135deg, #16a34a 0%, #0891b2 50%, #6366f1 100%);
+}
+
+/* ============================================================================ */
+/* 🎯 Print Styles */
+/* ============================================================================ */
+@media print {
+  body {
+    background: white;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
 }
