@@ -18,9 +18,33 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit')) || 50
     const offset = parseInt(searchParams.get('offset')) || 0
+    const fingerprint = searchParams.get('fingerprint') // ✅ إضافة
+
+    // ════════════════════════════════════════════════════════════
+    // ✅ جلب المستخدم من fingerprint
+    // ════════════════════════════════════════════════════════════
+    let userId = null
+    if (fingerprint) {
+      const user = await getUserByFingerprint(fingerprint)
+      userId = user?.id
+    }
 
     const requests = await getActiveRequests(limit, offset)
     const totalCount = await getActiveRequestsCount()
+
+    // ════════════════════════════════════════════════════════════
+    // ✅ إضافة علامة hasPrayed لكل طلب
+    // ════════════════════════════════════════════════════════════
+    if (userId) {
+      for (let req of requests) {
+        req.hasPrayed = await hasUserPrayed(userId, req.id)
+      }
+    } else {
+      // إذا لم يكن هناك مستخدم، كل الطلبات غير مدعو لها
+      for (let req of requests) {
+        req.hasPrayed = false
+      }
+    }
 
     return NextResponse.json({
       success: true,

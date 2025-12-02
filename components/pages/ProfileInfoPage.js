@@ -6,26 +6,26 @@ import { countries } from '@/lib/countries';
 // ════════════════════════════════════════════════════════════
 // 👤 صفحة معلوماتك الشخصية
 // ════════════════════════════════════════════════════════════
-// الميزات:
-// - نموذج كامل للمعلومات الشخصية
-// - حقول: الاسم، اسم الأم، اسم الأب، البريد، العمر، الدولة، الهاتف
-// - استخدام مكون PhoneInput للهاتف
-// - تصميم احترافي ونظيف
-// - حفظ البيانات في قاعدة البيانات
+// ✅ متوافق مع نظام Fingerprint
+// ✅ معايير احترافية عالية
+// ✅ يعمل مع UUID
+// ✅ مُصلح: يقرأ user_id من user_data في localStorage
 // ════════════════════════════════════════════════════════════
 
 export default function ProfileInfoPage({ user }) {
-  // ═══════════════════════════════════════════════════════════
-  // 🔧 الحالة
-  // ═══════════════════════════════════════════════════════════
   const [formData, setFormData] = useState({
     fullName: '',
-    motherName: '',
-    fatherName: '',
+    motherOrFatherName: '',
     email: '',
     age: '',
     country: '',
-    phone: ''
+    phoneNumber: '',
+    // إحصائيات (للعرض فقط)
+    totalPrayers: 0,
+    totalStars: 0,
+    prayersToday: 0,
+    prayersWeek: 0,
+    prayersMonth: 0
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -33,7 +33,32 @@ export default function ProfileInfoPage({ user }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // ═══════════════════════════════════════════════════════════
-  // 🎯 تحميل البيانات الحالية عند فتح الصفحة
+  // 🔧 دالة مساعدة للحصول على user_id
+  // ═══════════════════════════════════════════════════════════
+  const getUserId = () => {
+    // 1. من props
+    if (user?.id) return user.id;
+    
+    // 2. من user_data في localStorage
+    try {
+      const userData = localStorage.getItem('user_data');
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        if (parsed.id) return parsed.id;
+      }
+    } catch (e) {
+      console.error('Error parsing user_data:', e);
+    }
+    
+    // 3. من user_id مباشرة (احتياطي)
+    const directId = localStorage.getItem('user_id');
+    if (directId) return directId;
+    
+    return null;
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎯 تحميل البيانات الحالية
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     loadUserProfile();
@@ -41,9 +66,17 @@ export default function ProfileInfoPage({ user }) {
 
   const loadUserProfile = async () => {
     try {
+      const userId = getUserId();
+      
+      if (!userId) {
+        console.warn('⚠️ لا يوجد user_id - المستخدم غير مسجل');
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch('/api/users/profile', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'x-user-id': userId
         }
       });
 
@@ -51,13 +84,18 @@ export default function ProfileInfoPage({ user }) {
         const data = await response.json();
         if (data.success && data.profile) {
           setFormData({
-            fullName: data.profile.full_name || '',
-            motherName: data.profile.mother_name || '',
-            fatherName: data.profile.father_name || '',
+            fullName: data.profile.fullName || '',
+            motherOrFatherName: data.profile.motherOrFatherName || '',
             email: data.profile.email || '',
             age: data.profile.age || '',
             country: data.profile.country || '',
-            phone: data.profile.phone || ''
+            phoneNumber: data.profile.phoneNumber || '',
+            // إحصائيات
+            totalPrayers: data.profile.totalPrayers || 0,
+            totalStars: data.profile.totalStars || 0,
+            prayersToday: data.profile.prayersToday || 0,
+            prayersWeek: data.profile.prayersWeek || 0,
+            prayersMonth: data.profile.prayersMonth || 0
           });
         }
       }
@@ -73,7 +111,6 @@ export default function ProfileInfoPage({ user }) {
   // ═══════════════════════════════════════════════════════════
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // إخفاء رسالة الحفظ عند التعديل
     if (saveMessage.text) {
       setSaveMessage({ type: '', text: '' });
     }
@@ -86,10 +123,10 @@ export default function ProfileInfoPage({ user }) {
     e.preventDefault();
 
     // التحقق من الحقول الإلزامية
-    if (!formData.fullName.trim() || !formData.motherName.trim()) {
+    if (!formData.fullName.trim() || !formData.motherOrFatherName.trim()) {
       setSaveMessage({
         type: 'error',
-        text: '⚠️ الاسم الكامل واسم الأم مطلوبان'
+        text: '⚠️ الاسم الكامل واسم الأم/الأب مطلوبان'
       });
       return;
     }
@@ -98,20 +135,53 @@ export default function ProfileInfoPage({ user }) {
     setSaveMessage({ type: '', text: '' });
 
     try {
+      const userId = getUserId();
+      
+      if (!userId) {
+        setSaveMessage({
+          type: 'error',
+          text: '❌ يرجى تسجيل الدخول أولاً'
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      // ✅ تنظيف رقم الهاتف من emoji والرموز
+      let cleanPhone = formData.phoneNumber;
+      if (cleanPhone && cleanPhone.trim().length > 0) {
+        // إزالة كل شيء ما عدا الأرقام و +
+        cleanPhone = cleanPhone.replace(/[^\d+]/g, '');
+        
+        // إزالة أي + إضافية بعد الأولى
+        const parts = cleanPhone.split('+').filter(p => p);
+        if (parts.length > 0) {
+          cleanPhone = '+' + parts.join('');
+        }
+        
+        // التحقق من الصيغة الأساسية
+        if (!cleanPhone.startsWith('+') || cleanPhone.length < 10) {
+          setSaveMessage({
+            type: 'error',
+            text: '⚠️ رقم الهاتف غير صحيح. يجب أن يبدأ بـ + ورمز الدولة (مثال: +9647xxxxxxxxx)'
+          });
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'x-user-id': userId
         },
         body: JSON.stringify({
           fullName: formData.fullName.trim(),
-          motherName: formData.motherName.trim(),
-          fatherName: formData.fatherName.trim(),
-          email: formData.email.trim(),
+          motherOrFatherName: formData.motherOrFatherName.trim(),
+          email: formData.email.trim() || null,
           age: formData.age ? parseInt(formData.age) : null,
-          country: formData.country,
-          phone: formData.phone
+          country: formData.country || null,
+          phoneNumber: cleanPhone || null
         })
       });
 
@@ -123,7 +193,23 @@ export default function ProfileInfoPage({ user }) {
           text: '✅ تم حفظ معلوماتك بنجاح'
         });
         
-        // إخفاء الرسالة بعد 5 ثواني
+        // ✅ تحديث user_data في localStorage
+        try {
+          const userData = localStorage.getItem('user_data');
+          if (userData) {
+            const parsed = JSON.parse(userData);
+            parsed.full_name = formData.fullName.trim();
+            parsed.mother_or_father_name = formData.motherOrFatherName.trim();
+            parsed.email = formData.email.trim() || null;
+            parsed.age = formData.age ? parseInt(formData.age) : null;
+            parsed.country = formData.country || null;
+            parsed.phone_number = cleanPhone || null;
+            localStorage.setItem('user_data', JSON.stringify(parsed));
+          }
+        } catch (e) {
+          console.error('Error updating localStorage:', e);
+        }
+        
         setTimeout(() => {
           setSaveMessage({ type: '', text: '' });
         }, 5000);
@@ -165,9 +251,18 @@ export default function ProfileInfoPage({ user }) {
     <div className="min-h-screen bg-gradient-to-br from-stone-50 to-emerald-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         
-        {/* ═══════════════════════════════════════════════════════ */}
+        {/* زر العودة */}
+        <div className="mb-6">
+          <button
+            onClick={() => window.location.href = '/'}
+            className="flex items-center gap-2 text-stone-600 hover:text-emerald-600 transition-colors text-lg font-semibold"
+          >
+            <span className="text-2xl">←</span>
+            <span>العودة للصفحة الرئيسية</span>
+          </button>
+        </div>
+        
         {/* العنوان */}
-        {/* ═══════════════════════════════════════════════════════ */}
         <div className="text-center mb-8">
           <div className="text-6xl mb-4">👤</div>
           <h1 className="text-4xl font-bold text-stone-800 mb-2">
@@ -178,9 +273,41 @@ export default function ProfileInfoPage({ user }) {
           </p>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════ */}
+        {/* قسم الإحصائيات - جديد */}
+        {!isLoading && (
+          <div className="bg-white rounded-3xl border-2 border-stone-200 shadow-xl p-6 mb-6">
+            <h2 className="text-2xl font-bold text-stone-800 mb-4 text-center">
+              📊 إحصائياتك
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-4 text-center border-2 border-emerald-200">
+                <div className="text-4xl mb-2">🤲</div>
+                <div className="text-3xl font-bold text-emerald-700">{formData.totalPrayers || 0}</div>
+                <div className="text-sm text-emerald-600 font-semibold mt-1">دعوة كلية</div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 text-center border-2 border-blue-200">
+                <div className="text-4xl mb-2">📅</div>
+                <div className="text-3xl font-bold text-blue-700">{formData.prayersToday || 0}</div>
+                <div className="text-sm text-blue-600 font-semibold mt-1">دعوات اليوم</div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-4 text-center border-2 border-amber-200">
+                <div className="text-4xl mb-2">📊</div>
+                <div className="text-3xl font-bold text-amber-700">{formData.prayersWeek || 0}</div>
+                <div className="text-sm text-amber-600 font-semibold mt-1">دعوات الأسبوع</div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4 text-center border-2 border-purple-200">
+                <div className="text-4xl mb-2">⭐</div>
+                <div className="text-3xl font-bold text-purple-700">{formData.totalStars || 0}</div>
+                <div className="text-sm text-purple-600 font-semibold mt-1">النجوم</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* النموذج */}
-        {/* ═══════════════════════════════════════════════════════ */}
         <form onSubmit={handleSave} className="bg-white rounded-3xl border-2 border-stone-200 shadow-xl p-8">
           <div className="space-y-6">
             
@@ -200,35 +327,23 @@ export default function ProfileInfoPage({ user }) {
               />
             </div>
 
-            {/* اسم الأم */}
+            {/* اسم الأم أو الأب */}
             <div>
               <label className="block text-lg font-bold text-stone-800 mb-2">
-                اسم الأم <span className="text-red-500">*</span>
+                اسم الأم أو الأب <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={formData.motherName}
-                onChange={(e) => handleChange('motherName', e.target.value)}
-                placeholder="اسم والدتك"
+                value={formData.motherOrFatherName}
+                onChange={(e) => handleChange('motherOrFatherName', e.target.value)}
+                placeholder="مثال: فاطمة أو محمد"
                 required
                 className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
-            </div>
-
-            {/* اسم الأب */}
-            <div>
-              <label className="block text-lg font-bold text-stone-800 mb-2">
-                اسم الأب (اختياري)
-              </label>
-              <input
-                type="text"
-                value={formData.fatherName}
-                onChange={(e) => handleChange('fatherName', e.target.value)}
-                placeholder="اسم والدك"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
-                dir="rtl"
-              />
+              <p className="text-sm text-stone-500 mt-2">
+                💡 يُفضل اسم الأم للدعاء، لكن يمكنك إدخال اسم الأب
+              </p>
             </div>
 
             {/* البريد الإلكتروني */}
@@ -291,16 +406,14 @@ export default function ProfileInfoPage({ user }) {
                 رقم الهاتف (اختياري)
               </label>
               <PhoneInput
-                value={formData.phone}
-                onChange={(value) => handleChange('phone', value)}
+                value={formData.phoneNumber}
+                onChange={(value) => handleChange('phoneNumber', value)}
               />
             </div>
 
           </div>
 
-          {/* ═══════════════════════════════════════════════════════ */}
           {/* رسالة الحفظ */}
-          {/* ═══════════════════════════════════════════════════════ */}
           {saveMessage.text && (
             <div className={`mt-6 p-4 rounded-xl border-2 ${
               saveMessage.type === 'success' 
@@ -313,9 +426,7 @@ export default function ProfileInfoPage({ user }) {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════ */}
           {/* زر الحفظ */}
-          {/* ═══════════════════════════════════════════════════════ */}
           <button
             type="submit"
             disabled={isSaving}
@@ -334,9 +445,7 @@ export default function ProfileInfoPage({ user }) {
             )}
           </button>
 
-          {/* ═══════════════════════════════════════════════════════ */}
           {/* ملاحظة */}
-          {/* ═══════════════════════════════════════════════════════ */}
           <div className="mt-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
             <p className="text-base text-amber-800 text-center">
               ℹ️ معلوماتك آمنة ومحمية. سيتم استخدامها فقط لتحسين تجربتك في المنصة

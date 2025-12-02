@@ -1,69 +1,144 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import jwt from 'jsonwebtoken';
+import { sanitizeVerseData } from '@/lib/utils';
 
 // ============================================================================
-// 📥 GET - جلب طلبات الدعاء النشطة
+// 📥 GET - جلب طلبات الدعاء النشطة (محسّن للملايين + شارات)
 // ============================================================================
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all';
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit')) || 50;
+    const fingerprint = searchParams.get('fingerprint');
 
-    // بناء الاستعلام
-    let whereClause = "status = 'active'";
+    // ════════════════════════════════════════════════════════════
+    // ✅ Query محسّن مع معلومات المستخدم
+    // ════════════════════════════════════════════════════════════
     
-    if (type !== 'all') {
-      whereClause += ` AND type = '${type}'`;
-    }
-
-    const result = await query(
-      `SELECT 
+    let sql = `
+      SELECT 
         pr.id,
         pr.user_id,
         pr.type,
         pr.name,
         pr.mother_or_father_name,
         pr.purpose,
-        pr.prayer_count,
+        pr.status,
+        pr.custom_verse,
+        pr.quranic_verse,
         pr.created_at,
-        us.level,
-        us.total_stars
-       FROM prayer_requests pr
-       LEFT JOIN user_stats us ON pr.user_id = us.user_id
-       WHERE ${whereClause}
-       ORDER BY 
-         CASE 
-           WHEN us.level = 2 THEN 1  -- المميزون (دعاء مرتين) في الأعلى
-           WHEN us.level = 1 THEN 2
-           WHEN us.level = 3 THEN 3
-           ELSE 4
-         END,
-         pr.created_at DESC
-       LIMIT $1`,
-      [limit]
-    );
+        COUNT(p.id) as prayer_count,
+        -- ✅ إضافة معلومات المستخدم للشارات
+        u.level,
+        u.full_name as user_full_name,
+        u.phone_number as user_phone
+      FROM prayer_requests pr
+      LEFT JOIN prayers p ON p.request_id = pr.id
+      LEFT JOIN users u ON u.id = pr.user_id
+      WHERE pr.status = 'active'
+        AND (
+          pr.created_at > NOW() - INTERVAL '30 days'
+          OR pr.id IN (
+            SELECT DISTINCT request_id 
+            FROM prayers 
+            WHERE prayed_at > NOW() - INTERVAL '30 days'
+          )
+        )
+    `;
 
+    const params = [];
+    let paramIndex = 1;
+
+    if (type !== 'all') {
+      sql += ` AND pr.type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+
+    sql += ` 
+      GROUP BY pr.id, pr.user_id, pr.type, pr.name, pr.mother_or_father_name, 
+               pr.purpose, pr.status, pr.custom_verse, pr.quranic_verse, pr.created_at,
+               u.level, u.full_name, u.phone_number
+      ORDER BY pr.created_at DESC 
+      LIMIT $${paramIndex}
+    `;
+    params.push(limit);
+
+    const result = await query(sql, params);
+
+    // ════════════════════════════════════════════════════════════
+    // ✅ معالجة النتائج مع الشارات
+    // ════════════════════════════════════════════════════════════
     const requests = result.rows.map(row => ({
       id: row.id,
       userId: row.user_id,
       type: row.type,
-      name: row.type === 'sick' ? 'مريض يطلب دعاءكم' : row.name, // إخفاء اسم المريض
+      name: row.name || 'مريض يطلب دعاءكم',
+      parent_name: row.mother_or_father_name,
       purpose: row.purpose,
-      prayer_count: row.prayer_count || 0,
+      custom_verse: row.custom_verse,
+      quranic_verse: row.quranic_verse,
       created_at: row.created_at,
-      level: row.level || 0,
-      stars: row.total_stars || 0,
-      isSpecial: row.level === 2 // المميزون
+      prayerCount: parseInt(row.prayer_count) || 0,
+      hasPrayed: false,
+      // ✅ إضافة معلومات المستخدم
+      userLevel: row.level || 1,
+      userFullName: row.user_full_name,
+      userPhone: row.user_phone
     }));
+
+    // ════════════════════════════════════════════════════════════
+    // ✅ إضافة hasPrayed بـ query واحد فقط
+    // ════════════════════════════════════════════════════════════
+    if (fingerprint && requests.length > 0) {
+      try {
+        const userResult = await query(
+          'SELECT id FROM users WHERE device_fingerprint = $1',
+          [fingerprint]
+        );
+
+        if (userResult.rows.length > 0) {
+          const userId = userResult.rows[0].id;
+          const requestIds = requests.map(r => r.id);
+
+          const prayedResult = await query(
+            `SELECT DISTINCT request_id 
+             FROM prayers 
+             WHERE user_id = $1 AND request_id = ANY($2)`,
+            [userId, requestIds]
+          );
+
+          const prayedRequestIds = new Set(prayedResult.rows.map(r => r.request_id));
+          
+          requests.forEach(req => {
+            req.hasPrayed = prayedRequestIds.has(req.id);
+          });
+        }
+      } catch (err) {
+        console.error('Error checking hasPrayed:', err);
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      requests
+      requests: sanitizeVerseData(requests),
+      meta: {
+        total: requests.length,
+        limit: limit,
+        hasMore: requests.length === limit
+      }
     });
 
   } catch (error) {
-    console.error('Get prayer requests error:', error);
+    console.error('GET prayer-request error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    
     return NextResponse.json(
       { error: 'حدث خطأ أثناء جلب الطلبات' },
       { status: 500 }
@@ -76,120 +151,155 @@ export async function GET(request) {
 // ============================================================================
 export async function POST(request) {
   try {
+    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+    let userIdFromToken = null;
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userIdFromToken = decoded.userId;
+      } catch (err) {
+        console.log('Invalid token, proceeding as guest');
+      }
+    }
+
     const body = await request.json();
     const { 
-      type,           // personal, friend, deceased, sick
       name,
-      motherOrFatherName,
+      parent_name,
       purpose,
-      userId,         // اختياري - للمسجلين
-      fingerprint     // اختياري - للزوار
+      prayer_type,
+      custom_verse,
+      details,
+      fingerprint
     } = body;
 
-    // ============================================================================
-    // ✅ التحقق من البيانات الأساسية
-    // ============================================================================
-    if (!type || !['personal', 'friend', 'deceased', 'sick'].includes(type)) {
+    const validTypes = ['personal', 'friend', 'deceased', 'sick'];
+    if (!prayer_type || !validTypes.includes(prayer_type)) {
       return NextResponse.json(
-        { error: 'نوع الدعاء غير صحيح' },
+        { error: 'نوع الدعاء غير صحيح. القيم المسموحة: personal, friend, deceased, sick' },
         { status: 400 }
       );
     }
 
-    if (!name && type !== 'sick') {
+    if (!name && prayer_type === 'deceased') {
       return NextResponse.json(
-        { error: 'الاسم مطلوب - "مَن دَعَا بِاسمٍ عُرِفَ فَاستُجِيبَ لَهُ"' },
+        { error: 'اسم المتوفى مطلوب' },
         { status: 400 }
       );
     }
 
-    // ============================================================================
-    // 👤 تحديد المستخدم (مسجل أو زائر)
-    // ============================================================================
-    let userIdToUse = userId;
+    if (!parent_name && prayer_type === 'deceased') {
+      return NextResponse.json(
+        { error: 'اسم الأب أو الأم مطلوب للدعاء للمتوفى' },
+        { status: 400 }
+      );
+    }
+
+    if (!purpose) {
+      return NextResponse.json(
+        { error: 'غرض الدعاء مطلوب' },
+        { status: 400 }
+      );
+    }
+
+    let userId = userIdFromToken;
     
     if (!userId && fingerprint) {
-      // البحث عن مستخدم بالبصمة
       const userResult = await query(
         `SELECT id FROM users WHERE device_fingerprint = $1`,
         [fingerprint]
       );
       
       if (userResult.rows.length === 0) {
-        // إنشاء مستخدم مؤقت
         const newUserResult = await query(
           `INSERT INTO users (device_fingerprint, created_at) 
            VALUES ($1, NOW()) 
            RETURNING id`,
           [fingerprint]
         );
-        userIdToUse = newUserResult.rows[0].id;
+        userId = newUserResult.rows[0].id;
         
-        // إنشاء سجل إحصائيات
         await query(
-          `INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year, total_stars, level) 
-           VALUES ($1, 0, 0, 0, 0, 0, 0, 0)`,
-          [userIdToUse]
+          `INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year, total_stars) 
+           VALUES ($1, 0, 0, 0, 0, 0, 0)`,
+          [userId]
         );
       } else {
-        userIdToUse = userResult.rows[0].id;
+        userId = userResult.rows[0].id;
       }
     }
 
-    if (!userIdToUse) {
-      return NextResponse.json(
-        { error: 'يجب التسجيل أو السماح بالبصمة' },
-        { status: 400 }
+    if (!userId) {
+      const tempFingerprint = `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const anonymousUserResult = await query(
+        `INSERT INTO users (device_fingerprint, created_at) 
+         VALUES ($1, NOW()) 
+         RETURNING id`,
+        [tempFingerprint]
+      );
+      userId = anonymousUserResult.rows[0].id;
+      
+      await query(
+        `INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year, total_stars) 
+         VALUES ($1, 0, 0, 0, 0, 0, 0)`,
+        [userId]
       );
     }
 
-    // ============================================================================
-    // ⏰ التحقق من المدة المسموحة (من إعدادات الأدمن)
-    // ============================================================================
-    
-    // 1️⃣ جلب إعدادات المدة من الأدمن
     const durationSettingsResult = await query(
       `SELECT setting_value 
        FROM admin_settings 
        WHERE setting_key = 'prayerRequestDuration'`
     );
     
-    let allowedHours = 24; // افتراضي: مرة يومياً
+    let allowedHours = 24;
     
     if (durationSettingsResult.rows.length > 0) {
       const settings = durationSettingsResult.rows[0].setting_value;
       allowedHours = settings.customHours || 24;
     }
 
-    // 2️⃣ التحقق من مستوى المستخدم (المميزون = مستوى 2)
-    const userStatsResult = await query(
-      `SELECT level, last_achievement_date 
-       FROM user_stats 
-       WHERE user_id = $1`,
-      [userIdToUse]
+    const userDataResult = await query(
+      `SELECT u.device_fingerprint, u.full_name, u.mother_or_father_name, u.phone_number
+       FROM users u
+       WHERE u.id = $1`,
+      [userId]
     );
     
     let isSpecialUser = false;
-    let canRequestTwice = false;
     
-    if (userStatsResult.rows.length > 0) {
-      const userLevel = userStatsResult.rows[0].level;
+    if (userDataResult.rows.length > 0) {
+      const userData = userDataResult.rows[0];
       
-      // المميزون (مستوى 2): يمكنهم الطلب مرتين يومياً
-      if (userLevel === 2) {
+      const hasFingerprint = !!userData.device_fingerprint;
+      const hasName = !!userData.full_name;
+      const hasParentName = !!userData.mother_or_father_name;
+      const hasPhone = !!userData.phone_number;
+      
+      let userLevel = 1;
+      
+      if (hasFingerprint && hasName && hasParentName && hasPhone) {
+        userLevel = 3;
+      }
+      else if (hasFingerprint && hasName && hasParentName) {
+        userLevel = 2;
+      }
+      
+      if (userLevel >= 2) {
         isSpecialUser = true;
-        allowedHours = 12; // نصف المدة = مرتين يومياً
+        allowedHours = 12;
       }
     }
 
-    // 3️⃣ التحقق من آخر طلب
     const lastRequestResult = await query(
-      `SELECT created_at, type 
+      `SELECT created_at 
        FROM prayer_requests 
        WHERE user_id = $1 AND type = $2
        ORDER BY created_at DESC 
        LIMIT 1`,
-      [userIdToUse, type]
+      [userId, prayer_type]
     );
 
     if (lastRequestResult.rows.length > 0) {
@@ -200,18 +310,17 @@ export async function POST(request) {
       if (hoursPassed < allowedHours) {
         const hoursRemaining = Math.ceil(allowedHours - hoursPassed);
         
-        return NextResponse.json({
-          error: `⏰ يجب الانتظار ${hoursRemaining} ساعة قبل طلب دعاء جديد من نفس النوع\n\n"وَاصْبِرْ لِحُكْمِ رَبِّكَ"`,
-          canRequest: false,
-          hoursRemaining,
-          isSpecialUser
-        }, { status: 429 });
+        return NextResponse.json(
+          {
+            error: `يمكنك إرسال طلب جديد بعد ${hoursRemaining} ساعة`,
+            hoursRemaining,
+            nextRequestTime: new Date(lastRequestTime.getTime() + allowedHours * 60 * 60 * 1000)
+          },
+          { status: 429 }
+        );
       }
     }
 
-    // ============================================================================
-    // 💾 حفظ الطلب في قاعدة البيانات
-    // ============================================================================
     const insertResult = await query(
       `INSERT INTO prayer_requests (
         user_id,
@@ -219,36 +328,45 @@ export async function POST(request) {
         name,
         mother_or_father_name,
         purpose,
+        custom_verse,
         status,
-        prayer_count,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, 'active', 0, NOW())
-      RETURNING id, created_at`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
+      RETURNING *`,
       [
-        userIdToUse,
-        type,
-        name || 'مريض', // للمرضى بدون اسم
-        motherOrFatherName || null,
-        purpose || null
+        userId,
+        prayer_type,
+        name || 'مريض',
+        parent_name || null,
+        purpose,
+        custom_verse || null
       ]
     );
 
     const newRequest = insertResult.rows[0];
 
-    // ============================================================================
-    // 📊 رسالة ذكية بعد الإرسال
-    // ============================================================================
+    if (prayer_type === 'personal' && name && parent_name) {
+      await query(
+        `UPDATE users 
+         SET full_name = $1, 
+             mother_or_father_name = $2
+         WHERE id = $3 
+         AND (full_name IS NULL OR full_name = '')`,
+        [name, parent_name, userId]
+      );
+    }
+
     let smartMessage = `✅ تم إرسال طلبك بنجاح!\n\n"وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ"\n\n`;
     
-    if (type === 'deceased') {
+    if (prayer_type === 'deceased') {
       smartMessage += `🕊️ سيدعو المؤمنون للمتوفى بالرحمة والمغفرة\n\n`;
-    } else if (type === 'sick') {
+    } else if (prayer_type === 'sick') {
       smartMessage += `💊 سيدعو المؤمنون للمريض بالشفاء العاجل\n\n`;
     } else {
       smartMessage += `🤲 سيستجيب المؤمنون لدعوتك قريباً إن شاء الله\n\n`;
     }
     
-    smartMessage += `💡 افتح التطبيق بين الحين والآخر لترى من استجاب لدعوتك`;
+    smartMessage += `💡 تم نشر طلبك مباشرة - يمكن للجميع الدعاء الآن`;
     
     if (isSpecialUser) {
       smartMessage += `\n\n⭐⭐ أنت من المميزين! يمكنك الطلب مرة أخرى بعد ${allowedHours} ساعة`;
@@ -257,25 +375,31 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: smartMessage,
-      request: {
+      request: sanitizeVerseData({
         id: newRequest.id,
         createdAt: newRequest.created_at,
-        type,
-        isSpecialUser
-      }
+        type: prayer_type,
+        status: 'active',
+        isSpecialUser,
+        quranic_verse: newRequest.quranic_verse,
+        custom_verse: newRequest.custom_verse
+      })
     });
 
   } catch (error) {
-    console.error('Create prayer request error:', error);
+    console.error('POST prayer-request error:', error);
     return NextResponse.json(
-      { error: 'حدث خطأ أثناء إنشاء الطلب' },
+      { 
+        success: false,
+        error: error.message || 'حدث خطأ في إرسال الطلب' 
+      },
       { status: 500 }
     );
   }
 }
 
 // ============================================================================
-// 🗑️ DELETE - حذف طلب (للمستخدم نفسه أو الأدمن)
+// 🗑️ DELETE - حذف طلب
 // ============================================================================
 export async function DELETE(request) {
   try {
@@ -290,7 +414,6 @@ export async function DELETE(request) {
       );
     }
 
-    // حذف الطلب (التحقق من الملكية)
     const deleteResult = await query(
       `DELETE FROM prayer_requests 
        WHERE id = $1 AND user_id = $2
@@ -311,7 +434,7 @@ export async function DELETE(request) {
     });
 
   } catch (error) {
-    console.error('Delete prayer request error:', error);
+    console.error('DELETE prayer-request error:', error);
     return NextResponse.json(
       { error: 'حدث خطأ أثناء حذف الطلب' },
       { status: 500 }

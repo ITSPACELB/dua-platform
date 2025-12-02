@@ -1,477 +1,657 @@
+import { sanitizeVerseData } from '@/lib/utils';
+// ============================================================================
+// 📊 API: إحصائيات المستخدمين + نظام القرعة والمستويات - FINAL FIX ✅
+// ============================================================================
+// المسار: app/api/stats/route.js
+// ✅ إصلاح نهائي: استخدام pool.query بدلاً من query المستوردة
+// ✅ يتوافق مع lib/db.js الفعلي
+// ============================================================================
+
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import pool from '@/lib/db';  // ✅ استيراد pool (التصدير الافتراضي)
+import jwt from 'jsonwebtoken';
 import { 
-  calculateUserLevel, 
-  isEligibleForLottery, 
-  calculateInteractionScore,
+  calculateUserLevel,
+  isEligibleForLottery,
   selectLotteryWinners,
   grantAchievement,
   getActiveAchievements,
-  ACHIEVEMENTS
+  ACHIEVEMENTS 
 } from '@/lib/levelsSystem';
 
-/**
- * ============================================
- * GET /api/stats
- * ============================================
- * جلب الإحصائيات العامة + البيانات الديناميكية
- */
-export async function GET(request) {
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// ============================================================================
+// 🔐 دالة للتحقق من الـ token
+// ============================================================================
+function verifyToken(request) {
+  const authHeader = request.headers.get('authorization');
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  
   try {
-    // 1️⃣ عدد المؤمنين (المتفاعلين فقط)
-    const believersResult = await query(`
-      SELECT COUNT(DISTINCT user_id) as count
-      FROM (
-        SELECT user_id FROM prayers
-        UNION
-        SELECT user_id FROM prayer_requests WHERE status = 'active'
-      ) as active_users
-    `);
-    const believersCount = believersResult.rows[0]?.count || 0;
-
-    // 2️⃣ عدد الدعوات اليوم
-    const todayPrayersResult = await query(`
-      SELECT COUNT(*) as count
-      FROM prayers
-      WHERE prayed_at >= CURRENT_DATE
-    `);
-    const todayPrayers = todayPrayersResult.rows[0]?.count || 0;
-
-    // 3️⃣ عدد طلبات الدعاء النشطة
-    const activeRequestsResult = await query(`
-      SELECT COUNT(*) as count
-      FROM prayer_requests
-      WHERE status = 'active'
-    `);
-    const activeRequests = activeRequestsResult.rows[0]?.count || 0;
-
-    // 4️⃣ البانر من إعدادات الأدمن
-    const bannerResult = await query(`
-      SELECT setting_value
-      FROM admin_settings
-      WHERE setting_key = 'banner'
-      LIMIT 1
-    `);
-    const banner = bannerResult.rows[0]?.setting_value || null;
-
-    // 5️⃣ الدعاء الجماعي
-    const collectiveResult = await query(`
-      SELECT *
-      FROM collective_prayer
-      WHERE is_active = true
-      AND (end_date IS NULL OR end_date > NOW())
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-    const collectivePrayer = collectiveResult.rows[0] || null;
-
-    // 6️⃣ التوعية
-    const awarenessResult = await query(`
-      SELECT *
-      FROM awareness
-      WHERE is_active = true
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-    const awareness = awarenessResult.rows[0] || null;
-
-    // 7️⃣ الأكثر تفاعلاً - المستخدمين الفائزين
-    const topActiveUsers = await getTopActiveUsers();
-
-    // 8️⃣ إحصائيات المستخدم الحالي (إن وُجد)
-    const fingerprint = request.headers.get('x-device-fingerprint');
-    let userStats = null;
-    
-    if (fingerprint) {
-      const userResult = await query(`
-        SELECT u.*, us.*
-        FROM users u
-        LEFT JOIN user_stats us ON u.id = us.user_id
-        WHERE u.device_fingerprint = $1
-        LIMIT 1
-      `, [fingerprint]);
-
-      if (userResult.rows[0]) {
-        const userData = userResult.rows[0];
-        
-        // حساب مستوى المستخدم
-        const userLevel = calculateUserLevel(userData);
-        
-        // الحصول على الإنجازات النشطة
-        const achievementsResult = await query(`
-          SELECT *
-          FROM achievements
-          WHERE user_id = $1
-          AND achieved_at + (stars_earned || ' days')::interval > NOW()
-          ORDER BY achieved_at DESC
-        `, [userData.id]);
-        
-        const activeAchievements = getActiveAchievements(achievementsResult.rows);
-
-        userStats = {
-          userId: userData.id,
-          level: userLevel.level,
-          levelName: userLevel.name,
-          displayName: userLevel.benefits.displayName === 'userName' 
-            ? userData.full_name 
-            : `مؤمن ${userData.id.slice(0, 8)}`,
-          totalPrayers: userData.total_prayers || 0,
-          prayersToday: userData.prayers_today || 0,
-          prayersWeek: userData.prayers_week || 0,
-          prayersMonth: userData.prayers_month || 0,
-          totalStars: userData.total_stars || 0,
-          activeAchievements,
-          canEnterLottery: userLevel.benefits.canEnterLottery || false
-        };
-      }
-    }
-
-    // الاستجابة
-    return NextResponse.json({
-      success: true,
-      stats: {
-        believersCount,
-        todayPrayers,
-        activeRequests,
-        banner,
-        collectivePrayer,
-        awareness,
-        topActiveUsers,
-        userStats
-      }
-    });
-
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
-    console.error('Error in GET /api/stats:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'فشل تحميل الإحصائيات'
-    }, { status: 500 });
+    return null;
   }
 }
 
-/**
- * ============================================
- * POST /api/stats
- * ============================================
- * تحديث الإحصائيات أو تشغيل القرعة
- */
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    const { action } = body;
+// ============================================================================
+// 📊 حساب معدل التفاعل
+// ============================================================================
+function calculateInteractionRate(prayersGiven, notificationsReceived) {
+  if (notificationsReceived === 0) return 0;
+  return Math.round((prayersGiven / notificationsReceived) * 100);
+}
 
-    // 🎰 تشغيل القرعة اليومية
-    if (action === 'run_lottery') {
-      return await runDailyLottery();
-    }
-
-    // 📊 تحديث إحصائيات مستخدم
-    if (action === 'update_user_stats') {
-      return await updateUserStats(body.userId);
-    }
-
-    // ⭐ منح إنجاز
-    if (action === 'grant_achievement') {
-      return await grantUserAchievement(body.userId, body.achievementType);
-    }
-
-    return NextResponse.json({
-      success: false,
-      error: 'إجراء غير معروف'
-    }, { status: 400 });
-
-  } catch (error) {
-    console.error('Error in POST /api/stats:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'فشل تنفيذ الإجراء'
-    }, { status: 500 });
+// ============================================================================
+// 🏆 تحديد مستوى التوثيق
+// ============================================================================
+function getVerificationLevel(interactionRate) {
+  if (interactionRate >= 98) {
+    return {
+      name: 'GOLD',
+      color: 'amber',
+      icon: '👑',
+      threshold: 98
+    };
+  } else if (interactionRate >= 90) {
+    return {
+      name: 'GREEN',
+      color: 'emerald',
+      icon: '✓✓',
+      threshold: 90
+    };
+  } else if (interactionRate >= 80) {
+    return {
+      name: 'BLUE',
+      color: 'blue',
+      icon: '✓',
+      threshold: 80
+    };
+  } else {
+    return {
+      name: 'NONE',
+      color: 'stone',
+      icon: '',
+      threshold: 0
+    };
   }
 }
 
-/**
- * ============================================
- * 🎰 تشغيل القرعة اليومية
- * ============================================
- */
+// ============================================================================
+// ✨ الميزات المفتوحة حسب المستوى
+// ============================================================================
+function getUnlockedFeatures(interactionRate) {
+  const features = [];
+  
+  if (interactionRate >= 80) {
+    features.push('priority_display');
+    features.push('blue_badge');
+  }
+  
+  if (interactionRate >= 90) {
+    features.push('green_badge');
+    features.push('top_priority');
+  }
+  
+  if (interactionRate >= 98) {
+    features.push('gold_badge');
+    features.push('max_priority');
+    features.push('special_reactions');
+  }
+  
+  return features;
+}
+
+// ============================================================================
+// 📈 حساب المستوى القادم
+// ============================================================================
+function calculateNextLevel(rate) {
+  if (rate < 80) {
+    return {
+      level: 'BLUE',
+      levelName: 'التوثيق الأزرق',
+      remaining: 80 - rate,
+      icon: '✓',
+      color: 'blue'
+    };
+  }
+  if (rate < 90) {
+    return {
+      level: 'GREEN',
+      levelName: 'التوثيق الأخضر',
+      remaining: 90 - rate,
+      icon: '✓✓',
+      color: 'emerald'
+    };
+  }
+  if (rate < 98) {
+    return {
+      level: 'GOLD',
+      levelName: 'التوثيق الذهبي',
+      remaining: 98 - rate,
+      icon: '👑',
+      color: 'amber'
+    };
+  }
+  return {
+    level: 'MAX',
+    levelName: 'المستوى الأقصى',
+    remaining: 0,
+    icon: '👑',
+    color: 'amber'
+  };
+}
+
+// ============================================================================
+// 🎯 جلب الفائزين النشطين في القرعة
+// ============================================================================
+async function getActiveWinners() {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        u.id,
+        u.full_name,
+        u.mother_or_father_name,
+        a.achievement_type,
+        a.stars_earned,
+        a.achieved_at,
+        a.expires_at
+       FROM achievements a
+       JOIN users u ON a.user_id = u.id
+       WHERE a.achievement_type = 'name_display'
+       AND a.expires_at > NOW()
+       ORDER BY a.achieved_at DESC
+       LIMIT 2`
+    );
+
+    return result.rows.map(row => ({
+      id: row.id,
+      full_name: row.full_name,
+      mother_or_father_name: row.mother_or_father_name,
+      achievement: {
+        type: row.achievement_type,
+        stars: row.stars_earned,
+        achievedAt: row.achieved_at,
+        expiresAt: row.expires_at
+      }
+    }));
+  } catch (error) {
+    console.error('Error fetching active winners:', error);
+    return [];
+  }
+}
+
+// ============================================================================
+// 🎲 إجراء القرعة اليومية
+// ============================================================================
 async function runDailyLottery() {
   try {
-    // 1️⃣ الحصول على نسب التفاعل من الأدمن
-    const ratiosResult = await query(`
-      SELECT setting_value
-      FROM admin_settings
-      WHERE setting_key = 'interaction_ratios'
-      LIMIT 1
-    `);
-    const interactionRatios = ratiosResult.rows[0]?.setting_value || {
-      level1: 20,
-      level2: 30,
-      level3: 50
-    };
-
-    // 2️⃣ الحصول على المستخدمين المؤهلين
-    const eligibleUsersResult = await query(`
-      SELECT 
+    // 1. جلب المستخدمين المؤهلين (المستوى 2 و 3 فقط)
+    const eligibleResult = await pool.query(
+      `SELECT 
         u.id,
         u.full_name,
         u.mother_or_father_name,
         u.phone_number,
-        u.device_fingerprint,
-        us.total_prayers,
-        us.prayers_week,
-        us.level,
-        a.achieved_at as last_achievement_date
-      FROM users u
-      INNER JOIN user_stats us ON u.id = us.user_id
-      LEFT JOIN achievements a ON u.id = a.user_id 
-        AND a.achievement_type = 'name_display'
-        AND a.achieved_at = (
-          SELECT MAX(achieved_at) 
-          FROM achievements 
-          WHERE user_id = u.id 
-          AND achievement_type = 'name_display'
-        )
-      WHERE 
-        u.full_name IS NOT NULL 
-        AND u.mother_or_father_name IS NOT NULL
-        AND us.prayers_week > 0
-      ORDER BY us.prayers_week DESC
-    `);
+        us.total_prayers_given,
+        us.interaction_rate,
+        COALESCE(
+          (SELECT MAX(achieved_at) 
+           FROM achievements 
+           WHERE user_id = u.id AND achievement_type = 'name_display'),
+          '1970-01-01'
+        ) as last_achievement_date
+       FROM users u
+       JOIN user_stats us ON u.id = us.user_id
+       WHERE u.full_name IS NOT NULL 
+       AND u.mother_or_father_name IS NOT NULL
+       AND us.total_prayers_given > 0`
+    );
 
-    let eligibleUsers = eligibleUsersResult.rows;
-
-    // فلترة حسب الأهلية
-    eligibleUsers = eligibleUsers.filter(user => {
-      const eligibility = isEligibleForLottery(user);
-      return eligibility.eligible;
-    });
+    const eligibleUsers = eligibleResult.rows;
 
     if (eligibleUsers.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'لا يوجد مستخدمون مؤهلون للقرعة حالياً',
-        winners: []
-      });
+      console.log('No eligible users for lottery');
+      return [];
     }
 
-    // 3️⃣ الحصول على الفائزين المكتوبين يدوياً من الأدمن (إن وُجدوا)
-    const manualWinnersResult = await query(`
-      SELECT setting_value
-      FROM admin_settings
-      WHERE setting_key = 'manual_top_active'
-      LIMIT 1
-    `);
-    const manualWinners = manualWinnersResult.rows[0]?.setting_value || null;
+    // 2. تحديد مستوى كل مستخدم
+    const usersWithLevels = eligibleUsers.map(user => {
+      const level = calculateUserLevel(user);
+      return {
+        ...user,
+        level: level.level,
+        eligibility: isEligibleForLottery(user)
+      };
+    }).filter(user => user.eligibility.eligible);
 
-    let winners = [];
+    if (usersWithLevels.length === 0) {
+      console.log('No users passed eligibility check');
+      return [];
+    }
 
-    // إذا كان هناك فائزون يدويون، استخدمهم
-    if (manualWinners && manualWinners.enabled && manualWinners.users) {
-      winners = manualWinners.users.map(winner => ({
-        id: winner.id || `manual_${Date.now()}_${Math.random()}`,
-        displayName: winner.name,
-        isManual: true,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-      }));
-    } else {
-      // 4️⃣ اختيار الفائزين بالقرعة
-      const lotteryWinners = selectLotteryWinners(
-        eligibleUsers, 
-        2, // عدد الفائزين
-        interactionRatios
+    // 3. جلب نسب التفاعل من إعدادات الأدمن
+    const ratiosResult = await pool.query(
+      `SELECT setting_value 
+       FROM admin_settings 
+       WHERE setting_key = 'interaction_ratios'
+       LIMIT 1`
+    );
+
+    let interactionRatios = null;
+    if (ratiosResult.rows.length > 0 && ratiosResult.rows[0].setting_value) {
+      interactionRatios = ratiosResult.rows[0].setting_value;
+    }
+
+    // 4. اختيار الفائزين
+    const winners = selectLotteryWinners(usersWithLevels, 2, interactionRatios);
+
+    if (winners.length === 0) {
+      console.log('No winners selected');
+      return [];
+    }
+
+    // 5. منح الإنجازات للفائزين
+    const grantedAchievements = [];
+    for (const winner of winners) {
+      try {
+        const achievement = grantAchievement(winner.id, 'NAME_DISPLAY');
+        
+        // حفظ في قاعدة البيانات
+        await pool.query(
+          `INSERT INTO achievements 
+           (user_id, achievement_type, stars_earned, achieved_at, expires_at)
+           VALUES ($1, $2, $3, NOW(), $4)`,
+          [winner.id, achievement.achievementType, achievement.stars, achievement.expiresAt]
+        );
+
+        grantedAchievements.push({
+          userId: winner.id,
+          userName: winner.full_name,
+          achievement
+        });
+      } catch (error) {
+        console.error(`Error granting achievement to ${winner.id}:`, error);
+      }
+    }
+
+    return grantedAchievements;
+  } catch (error) {
+    console.error('Error running daily lottery:', error);
+    return [];
+  }
+}
+
+// ============================================================================
+// GET - جلب إحصائيات عامة (بدون Token) أو شخصية (مع Token) - ✅ FINAL FIX
+// ============================================================================
+export async function GET(request) {
+  try {
+    // التحقق من وجود token (اختياري)
+    const decoded = verifyToken(request);
+    
+    // ✅ 1. عدد المؤمنين (Level 2 و 3) - يشمل الوهمي والحقيقي
+    const believersResult = await pool.query(
+      'SELECT COUNT(*) as count FROM users WHERE level >= 2'
+    );
+    const believersCount = parseInt(believersResult.rows[0].count) || 0;
+
+    // إذا كان المستخدم مسجلاً، نعيد إحصائياته الكاملة
+    if (decoded && decoded.userId) {
+      // جلب بيانات المستخدم
+      const userResult = await pool.query(
+        'SELECT * FROM users WHERE id = $1',
+        [decoded.userId]
       );
 
-      // 5️⃣ منح إنجاز "عرض الاسم" للفائزين
-      for (const winner of lotteryWinners) {
-        await query(`
-          INSERT INTO achievements (
-            id, user_id, achievement_type, stars_earned, achieved_at
-          ) VALUES (
-            gen_random_uuid(), $1, 'name_display', 1, NOW()
-          )
-        `, [winner.id]);
+      if (userResult.rows.length === 0) {
+        return NextResponse.json(
+          { error: 'المستخدم غير موجود' },
+          { status: 404 }
+        );
+      }
 
-        // تحديث عدد النجوم
-        await query(`
-          UPDATE user_stats
-          SET total_stars = total_stars + 1
-          WHERE user_id = $1
-        `, [winner.id]);
+      const userData = userResult.rows[0];
 
-        winners.push({
-          id: winner.id,
-          displayName: winner.full_name,
-          isManual: false,
-          expiresAt: new Date(Date.now() + ACHIEVEMENTS.NAME_DISPLAY.duration)
+      // جلب إحصائيات المستخدم
+      const statsResult = await pool.query(
+        `SELECT 
+          total_prayers_given,
+          total_notifications_received,
+          interaction_rate,
+          total_stars,
+          last_prayer_date
+         FROM user_stats 
+         WHERE user_id = $1`,
+        [decoded.userId]
+      );
+
+      if (statsResult.rows.length === 0) {
+        // إنشاء سجل إحصائيات إذا لم يكن موجوداً
+        await pool.query(
+          `INSERT INTO user_stats (user_id, total_prayers_given, total_notifications_received, interaction_rate, total_stars)
+           VALUES ($1, 0, 0, 0, 0)`,
+          [decoded.userId]
+        );
+        
+        return NextResponse.json({
+          success: true,
+          stats: sanitizeVerseData({
+            totalPrayersGiven: 0,
+            totalNotificationsReceived: 0,
+            interactionRate: 0,
+            totalStars: 0,
+            lastPrayerDate: null,
+            prayersThisMonth: 0,
+            prayersReceivedCount: 0,
+            answeredPrayers: 0,
+            believersCount,
+            verificationLevel: {
+              name: 'NONE',
+              color: 'stone',
+              icon: '',
+              threshold: 0
+            },
+            unlockedFeatures: [],
+            nextLevel: {
+              level: 'BLUE',
+              levelName: 'التوثيق الأزرق',
+              remaining: 80,
+              icon: '✓',
+              color: 'blue'
+            },
+            userLevel: {
+              level: 1,
+              name: 'زائر',
+              canEnterLottery: false
+            },
+            activeAchievements: [],
+            topActiveUsers: []
+          })
         });
       }
-    }
 
-    // 6️⃣ حفظ الفائزين في الإعدادات
-    await query(`
-      INSERT INTO admin_settings (id, setting_key, setting_value, updated_at)
-      VALUES (gen_random_uuid(), 'current_top_active', $1, NOW())
-      ON CONFLICT (setting_key) 
-      DO UPDATE SET 
-        setting_value = $1,
-        updated_at = NOW()
-    `, [JSON.stringify(winners)]);
+      const stats = statsResult.rows[0];
 
-    return NextResponse.json({
-      success: true,
-      message: 'تمت القرعة بنجاح',
-      winners
-    });
+      // حساب دعوات هذا الشهر
+      const monthPrayersResult = await pool.query(
+        `SELECT COUNT(*) as count
+         FROM prayers
+         WHERE user_id = $1 
+         AND created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
+        [decoded.userId]
+      );
 
-  } catch (error) {
-    console.error('Error in runDailyLottery:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'فشل تشغيل القرعة'
-    }, { status: 500 });
-  }
-}
+      // حساب عدد من دعوا للمستخدم
+      const receivedPrayersResult = await pool.query(
+        `SELECT COUNT(DISTINCT p.user_id) as count
+         FROM prayer_requests pr
+         JOIN prayers p ON pr.id = p.request_id
+         WHERE pr.user_id = $1`,
+        [decoded.userId]
+      );
 
-/**
- * ============================================
- * 📊 تحديث إحصائيات مستخدم
- * ============================================
- */
-async function updateUserStats(userId) {
-  try {
-    // حساب الإحصائيات من الدعوات
-    const statsResult = await query(`
-      SELECT 
-        COUNT(*) as total_prayers,
-        COUNT(*) FILTER (WHERE prayed_at >= CURRENT_DATE) as prayers_today,
-        COUNT(*) FILTER (WHERE prayed_at >= CURRENT_DATE - INTERVAL '7 days') as prayers_week,
-        COUNT(*) FILTER (WHERE prayed_at >= CURRENT_DATE - INTERVAL '30 days') as prayers_month,
-        COUNT(*) FILTER (WHERE prayed_at >= CURRENT_DATE - INTERVAL '1 year') as prayers_year
-      FROM prayers
-      WHERE user_id = $1
-    `, [userId]);
+      // حساب الطلبات المستجابة
+      const answeredResult = await pool.query(
+        `SELECT COUNT(*) as count
+         FROM prayer_requests
+         WHERE user_id = $1 AND status = 'answered'`,
+        [decoded.userId]
+      );
 
-    const stats = statsResult.rows[0];
+      // جلب إنجازات المستخدم النشطة
+      const achievementsResult = await pool.query(
+        `SELECT * FROM achievements
+         WHERE user_id = $1 
+         AND expires_at > NOW()
+         ORDER BY achieved_at DESC`,
+        [decoded.userId]
+      );
 
-    // تحديث أو إنشاء السجل
-    await query(`
-      INSERT INTO user_stats (
-        id, user_id, 
-        total_prayers, prayers_today, prayers_week, prayers_month, prayers_year,
-        updated_at
-      ) VALUES (
-        gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW()
-      )
-      ON CONFLICT (user_id)
-      DO UPDATE SET
-        total_prayers = $2,
-        prayers_today = $3,
-        prayers_week = $4,
-        prayers_month = $5,
-        prayers_year = $6,
-        updated_at = NOW()
-    `, [
-      userId,
-      stats.total_prayers || 0,
-      stats.prayers_today || 0,
-      stats.prayers_week || 0,
-      stats.prayers_month || 0,
-      stats.prayers_year || 0
-    ]);
+      const activeAchievements = achievementsResult.rows.map(row => ({
+        achievementType: row.achievement_type,
+        starsEarned: row.stars_earned,
+        achievedAt: row.achieved_at,
+        expiresAt: row.expires_at
+      }));
 
-    return NextResponse.json({
-      success: true,
-      message: 'تم تحديث الإحصائيات',
-      stats
-    });
+      // حساب معدل التفاعل والتوثيق
+      const interactionRate = calculateInteractionRate(
+        parseInt(stats.total_prayers_given),
+        parseInt(stats.total_notifications_received)
+      );
 
-  } catch (error) {
-    console.error('Error in updateUserStats:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'فشل تحديث الإحصائيات'
-    }, { status: 500 });
-  }
-}
+      const verificationLevel = getVerificationLevel(interactionRate);
+      const unlockedFeatures = getUnlockedFeatures(interactionRate);
+      const nextLevel = calculateNextLevel(interactionRate);
 
-/**
- * ============================================
- * ⭐ منح إنجاز لمستخدم
- * ============================================
- */
-async function grantUserAchievement(userId, achievementType) {
-  try {
-    const achievement = grantAchievement(userId, achievementType);
+      // حساب مستوى المستخدم
+      const userLevel = calculateUserLevel(userData);
 
-    await query(`
-      INSERT INTO achievements (
-        id, user_id, achievement_type, stars_earned, achieved_at
-      ) VALUES (
-        gen_random_uuid(), $1, $2, $3, NOW()
-      )
-    `, [
-      userId,
-      achievement.achievementType,
-      achievement.stars
-    ]);
+      // جلب الفائزين النشطين
+      const topActiveUsers = await getActiveWinners();
 
-    // تحديث عدد النجوم
-    await query(`
-      UPDATE user_stats
-      SET total_stars = total_stars + $1
-      WHERE user_id = $2
-    `, [achievement.stars, userId]);
-
-    return NextResponse.json({
-      success: true,
-      message: 'تم منح الإنجاز',
-      achievement
-    });
-
-  } catch (error) {
-    console.error('Error in grantUserAchievement:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'فشل منح الإنجاز'
-    }, { status: 500 });
-  }
-}
-
-/**
- * ============================================
- * 🏆 الحصول على الأكثر تفاعلاً
- * ============================================
- */
-async function getTopActiveUsers() {
-  try {
-    // الحصول من الإعدادات المحفوظة
-    const topActiveResult = await query(`
-      SELECT setting_value
-      FROM admin_settings
-      WHERE setting_key = 'current_top_active'
-      LIMIT 1
-    `);
-
-    if (topActiveResult.rows[0]?.setting_value) {
-      const winners = topActiveResult.rows[0].setting_value;
-      
-      // التحقق من صلاحية الوقت
-      const validWinners = winners.filter(winner => {
-        const expiryDate = new Date(winner.expiresAt);
-        return new Date() < expiryDate;
+      return NextResponse.json({
+        success: true,
+        stats: sanitizeVerseData({
+          totalPrayersGiven: parseInt(stats.total_prayers_given),
+          totalNotificationsReceived: parseInt(stats.total_notifications_received),
+          interactionRate,
+          totalStars: parseInt(stats.total_stars || 0),
+          lastPrayerDate: stats.last_prayer_date,
+          prayersThisMonth: parseInt(monthPrayersResult.rows[0].count),
+          prayersReceivedCount: parseInt(receivedPrayersResult.rows[0].count),
+          answeredPrayers: parseInt(answeredResult.rows[0].count),
+          believersCount,
+          verificationLevel: {
+            name: verificationLevel.name,
+            color: verificationLevel.color,
+            icon: verificationLevel.icon,
+            threshold: verificationLevel.threshold
+          },
+          unlockedFeatures,
+          nextLevel,
+          userLevel: {
+            level: userLevel.level,
+            name: userLevel.name,
+            canEnterLottery: userLevel.benefits.canEnterLottery || false,
+            canWinAchievements: userLevel.benefits.canWinAchievements || false
+          },
+          activeAchievements,
+          topActiveUsers
+        })
       });
-
-      if (validWinners.length > 0) {
-        return validWinners;
-      }
     }
 
-    // إذا لم يكن هناك فائزون أو انتهت صلاحيتهم، إرجاع قائمة فارغة
-    return [];
+    // ✅ إذا لم يكن مسجلاً - نعيد الإحصائيات العامة فقط
+    // ✅ 2. دعاء اليوم - من جميع المستويات (1, 2, 3)
+    const todayPrayersResult = await pool.query(
+      `SELECT COUNT(*) as count FROM prayers 
+       WHERE DATE(prayed_at) = CURRENT_DATE`
+    );
+    const todayPrayersCount = parseInt(todayPrayersResult.rows[0].count) || 0;
+
+    // ✅ 3. الطلبات النشطة - من جميع المستويات
+    const activeRequestsResult = await pool.query(
+      `SELECT COUNT(*) as count FROM prayer_requests 
+       WHERE status = 'active'`
+    );
+    const activeRequestsCount = parseInt(activeRequestsResult.rows[0].count) || 0;
+
+    // ✅ 4. المتفاعلون اليوم
+    const todayActiveUsersResult = await pool.query(
+      `SELECT 
+        u.id,
+        u.full_name,
+        u.level,
+        COUNT(p.id) as prayer_count
+       FROM users u
+       INNER JOIN prayers p ON p.user_id = u.id
+       WHERE DATE(p.prayed_at) = CURRENT_DATE
+       GROUP BY u.id, u.full_name, u.level
+       ORDER BY prayer_count DESC
+       LIMIT 20`
+    );
+
+    const todayActiveUsers = todayActiveUsersResult.rows.map(row => ({
+      id: row.id,
+      name: row.full_name || 'شخص مجهول',
+      level: row.level,
+      prayerCount: parseInt(row.prayer_count)
+    }));
+
+    // Response للزوار (غير المسجلين)
+    return NextResponse.json({
+      success: true,
+      isGuest: true,
+      stats: sanitizeVerseData({
+        believersCount,
+        todayPrayersCount,
+        activeRequestsCount,
+        todayActiveUsers,
+        todayActiveUsersCount: todayActiveUsers.length
+      }),
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
-    console.error('Error in getTopActiveUsers:', error);
-    return [];
+    console.error('❌ Stats fetch error:', error);
+    return NextResponse.json(
+      { 
+        error: 'حدث خطأ أثناء جلب الإحصائيات',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
+      { status: 500 }
+    );
   }
 }
+
+// ============================================================================
+// POST - تحديث إحصائيات المستخدم (عند القيام بدعاء جديد)
+// ============================================================================
+export async function POST(request) {
+  try {
+    // التحقق من الـ token
+    const decoded = verifyToken(request);
+    
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'غير مصرح. الرجاء تسجيل الدخول.' },
+        { status: 401 }
+      );
+    }
+
+    const userId = decoded.userId;
+
+    // تحديث العداد
+    await pool.query(
+      `UPDATE user_stats 
+       SET 
+         total_prayers_given = total_prayers_given + 1,
+         last_prayer_date = NOW(),
+         interaction_rate = CASE 
+           WHEN total_notifications_received > 0 
+           THEN (total_prayers_given + 1)::float / total_notifications_received * 100
+           ELSE 0
+         END
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    // جلب الإحصائيات المحدثة
+    const updatedStats = await pool.query(
+      `SELECT total_prayers_given, total_notifications_received, interaction_rate, total_stars
+       FROM user_stats 
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    const stats = updatedStats.rows[0];
+    const interactionRate = calculateInteractionRate(
+      parseInt(stats.total_prayers_given),
+      parseInt(stats.total_notifications_received)
+    );
+
+    const verificationLevel = getVerificationLevel(interactionRate);
+    const unlockedFeatures = getUnlockedFeatures(interactionRate);
+    const nextLevel = calculateNextLevel(interactionRate);
+
+    return NextResponse.json({
+      success: true,
+      stats: sanitizeVerseData({
+        totalPrayersGiven: parseInt(stats.total_prayers_given),
+        totalStars: parseInt(stats.total_stars || 0),
+        interactionRate,
+        verificationLevel: {
+          name: verificationLevel.name,
+          color: verificationLevel.color,
+          icon: verificationLevel.icon,
+          threshold: verificationLevel.threshold
+        },
+        unlockedFeatures,
+        nextLevel
+      })
+    });
+
+  } catch (error) {
+    console.error('Stats update error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ أثناء تحديث الإحصائيات' },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================================================
+// PUT - تشغيل القرعة يدوياً (للأدمن أو Cron Job)
+// ============================================================================
+export async function PUT(request) {
+  try {
+    // التحقق من صلاحيات الأدمن
+    const authHeader = request.headers.get('x-api-key');
+    const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin-secret-key';
+    
+    if (authHeader !== ADMIN_API_KEY) {
+      return NextResponse.json(
+        { error: 'غير مصرح - صلاحيات أدمن مطلوبة' },
+        { status: 403 }
+      );
+    }
+
+    // تشغيل القرعة
+    const winners = await runDailyLottery();
+
+    return NextResponse.json({
+      success: true,
+      message: 'تم إجراء القرعة بنجاح',
+      winners: sanitizeVerseData(winners.map(w => ({
+        userId: w.userId,
+        userName: w.userName,
+        achievement: {
+          type: w.achievement.achievementType,
+          name: w.achievement.name,
+          stars: w.achievement.stars,
+          expiresAt: w.achievement.expiresAt
+        }
+      }))),
+      winnersCount: winners.length
+    });
+
+  } catch (error) {
+    console.error('Lottery run error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ أثناء إجراء القرعة' },
+      { status: 500 }
+    );
+  }
+}
+
+// ✅ ضمان عدم Cache البيانات
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;

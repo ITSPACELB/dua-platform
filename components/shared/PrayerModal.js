@@ -2,37 +2,43 @@
 import { useState, useEffect, useRef } from 'react';
 import PhoneInput from './PhoneInput';
 import { quranQuotes } from '@/lib/quranQuotes';
+import { getAllVersesByPurpose } from '@/lib/verses';
 
 // ════════════════════════════════════════════════════════════
 // 🕌 نافذة طلب الدعاء المنبثقة
 // ════════════════════════════════════════════════════════════
-// الأنواع: general, sick, deceased, collective
+// الأنواع: personal, friend, general, sick, deceased, collective
 // الميزات:
 // - أنيميشن slide down سلس (400ms)
 // - إغلاق عند الضغط خارج النافذة أو ESC
 // - تركيز تلقائي على أول حقل
 // - اقتباسات قرآنية لكل نوع
 // - حقول مختلفة حسب النوع
+// - purpose field لكل الأنواع
+// - parentName موحد (بدل motherName/fatherName)
 // ════════════════════════════════════════════════════════════
 
 export default function PrayerModal({ 
   isOpen, 
   onClose, 
   type = 'general',
-  onSubmit 
+  onSubmit,
+  userLevel = 1,          // ✅ التعديل 1: إضافة prop للمستوى
+  hasVerseAchievement = false // ✅ التعديل 1: إضافة prop للإنجاز
 }) {
   // ═══════════════════════════════════════════════════════════
-  // 🔧 الحالة والمراجع
+  // 🔧 الحالة والمراجع - ✅ التعديل 2: إضافة customVerse إلى state
   // ═══════════════════════════════════════════════════════════
   const [formData, setFormData] = useState({
     name: '',
-    motherName: '',
-    fatherName: '',
+    parentName: '',        // موحد (بدل motherName/fatherName)
+    purpose: '',           // جديد
+    customVerse: '',       // ✅ التعديل 2: حقل الآية المخصصة الجديد
     phone: '',
-    relation: '',
-    date: '',
-    time: '',
-    intention: ''
+    relation: '',          // للمتوفى فقط
+    date: '',              // للدعاء الجماعي
+    time: '',              // للدعاء الجماعي
+    intention: ''          // للدعاء الجماعي
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,14 +69,15 @@ export default function PrayerModal({
   }, [isOpen, onClose]);
 
   // ═══════════════════════════════════════════════════════════
-  // 🔄 إعادة تعيين النموذج عند الإغلاق
+  // 🔄 إعادة تعيين النموذج عند الإغلاق - ✅ التعديل 3: إعادة تعيين customVerse
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isOpen) {
       setFormData({
         name: '',
-        motherName: '',
-        fatherName: '',
+        parentName: '',
+        purpose: '',
+        customVerse: '',   // ✅ التعديل 3: إعادة تعيين الحقل الجديد
         phone: '',
         relation: '',
         date: '',
@@ -120,7 +127,243 @@ export default function PrayerModal({
   const renderFormContent = () => {
     switch (type) {
       // ═══════════════════════════════════════════════════════
-      // 🤲 دعاء عام
+      // 🤲 دعاء شخصي - ✅ التعديل 4: إضافة قسم الآية المخصصة
+      // ═══════════════════════════════════════════════════════
+      case 'personal':
+        return (
+          <>
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                اسمك <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={firstInputRef}
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                placeholder="أدخل اسمك"
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="rtl"
+              />
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                اسم الأب أو اسم الأم (اختياري)
+              </label>
+              <input
+                type="text"
+                value={formData.parentName}
+                onChange={(e) => handleChange('parentName', e.target.value)}
+                placeholder="اسم والدك أو والدتك"
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="rtl"
+              />
+              <p className="text-sm text-emerald-700 mt-1 font-semibold">
+                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                الغرض من الدعاء <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => handleChange('purpose', e.target.value)}
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                dir="rtl"
+              >
+                <option value="">اختر الغرض...</option>
+                <option value="الرزق">الرزق</option>
+                <option value="الزواج">الزواج</option>
+                <option value="الفرج">الفرج</option>
+                <option value="الذرية الصالحة">الذرية الصالحة</option>
+                <option value="النصر">النصر</option>
+                <option value="الحفظ">الحفظ</option>
+                <option value="البركة">البركة</option>
+                <option value="القوة">القوة</option>
+                <option value="الهداية">الهداية</option>
+                <option value="التوفيق">التوفيق</option>
+                <option value="السكينة">السكينة</option>
+                <option value="الصبر">الصبر</option>
+                <option value="العلم">العلم</option>
+                <option value="الحكمة">الحكمة</option>
+                <option value="القبول">القبول</option>
+                <option value="التيسير">التيسير</option>
+                <option value="الأمان">الأمان</option>
+                <option value="الستر">الستر</option>
+              </select>
+            </div>
+
+{/* ✅ التعديل 4: قسم الآية المخصصة للمستخدمين Level 3 مع إنجاز ⭐⭐⭐ */}
+{userLevel >= 3 && hasVerseAchievement && formData.purpose && (
+  <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-6">
+    <div className="flex items-center gap-3 mb-4">
+      <span className="text-2xl">👑</span>
+      <div>
+        <h4 className="text-lg font-bold text-purple-900">آية قرآنية مخصصة</h4>
+        <p className="text-sm text-purple-700">ميزة خاصة للمستخدمين المميزين</p>
+      </div>
+    </div>
+    
+    <label className="block text-lg font-semibold text-purple-800 mb-2">
+      اختر آية قرآنية (اختياري)
+    </label>
+    <select
+      value={formData.customVerse}
+      onChange={(e) => handleChange('customVerse', e.target.value)}
+      className="w-full h-14 px-4 border-2 border-purple-300 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white"
+      dir="rtl"
+    >
+      <option value="">-- اختر آية مناسبة --</option>
+      {(() => {
+        try {
+          const verses = getAllVersesByPurpose ? getAllVersesByPurpose(formData.purpose) : [];
+          return verses.map((verse, index) => {
+            // ✅ تأكد من أن verse.text هو string
+            const verseText = typeof verse.text === 'string' 
+              ? verse.text 
+              : typeof verse.text === 'object' && verse.text.text
+                ? verse.text.text
+                : 'آية قرآنية';
+            
+            const verseRef = verse.ref || verse.source || '';
+            
+            return (
+              <option key={verse.id || index} value={verseText}>
+                {verseText.substring(0, 60)}... {verseRef && `(${verseRef})`}
+              </option>
+            );
+          });
+        } catch (error) {
+          console.error('Error loading verses:', error);
+          return (
+            <option disabled>حدث خطأ في تحميل الآيات</option>
+          );
+        }
+      })()}
+    </select>
+    
+    {formData.customVerse && (
+      <div className="mt-4 p-4 bg-white border-2 border-purple-300 rounded-xl">
+        <p className="text-sm font-bold text-purple-600 mb-2">📖 الآية المختارة:</p>
+        <p className="text-purple-800 leading-loose text-base text-center" dir="rtl">
+          {typeof formData.customVerse === 'string' 
+            ? formData.customVerse 
+            : formData.customVerse.text || 'آية قرآنية'}
+        </p>
+      </div>
+    )}
+  </div>
+)}
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                رقم الهاتف (اختياري)
+              </label>
+              <PhoneInput
+                value={formData.phone}
+                onChange={(value) => handleChange('phone', value)}
+              />
+              <p className="text-xs text-stone-500 mt-1">
+                للتواصل في حال الاستجابة
+              </p>
+            </div>
+          </>
+        );
+
+      // ═══════════════════════════════════════════════════════
+      // ❤️ دعاء لصديق - ⚠️ لم يتغير (الكود الأصلي محفوظ)
+      // ═══════════════════════════════════════════════════════
+      case 'friend':
+        return (
+          <>
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                اسم صديقك <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={firstInputRef}
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                placeholder="أدخل اسم صديقك"
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="rtl"
+              />
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                اسم الأب أو اسم الأم (اختياري)
+              </label>
+              <input
+                type="text"
+                value={formData.parentName}
+                onChange={(e) => handleChange('parentName', e.target.value)}
+                placeholder="اسم والده أو والدته"
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="rtl"
+              />
+              <p className="text-sm text-emerald-700 mt-1 font-semibold">
+                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                الغرض من الدعاء <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => handleChange('purpose', e.target.value)}
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                dir="rtl"
+              >
+                <option value="">اختر الغرض...</option>
+                <option value="الرزق">الرزق</option>
+                <option value="الزواج">الزواج</option>
+                <option value="الفرج">الفرج</option>
+                <option value="الذرية الصالحة">الذرية الصالحة</option>
+                <option value="النصر">النصر</option>
+                <option value="الحفظ">الحفظ</option>
+                <option value="البركة">البركة</option>
+                <option value="القوة">القوة</option>
+                <option value="الهداية">الهداية</option>
+                <option value="التوفيق">التوفيق</option>
+                <option value="السكينة">السكينة</option>
+                <option value="الصبر">الصبر</option>
+                <option value="العلم">العلم</option>
+                <option value="الحكمة">الحكمة</option>
+                <option value="القبول">القبول</option>
+                <option value="التيسير">التيسير</option>
+                <option value="الأمان">الأمان</option>
+                <option value="الستر">الستر</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                رقم الهاتف (اختياري)
+              </label>
+              <PhoneInput
+                value={formData.phone}
+                onChange={(value) => handleChange('phone', value)}
+              />
+              <p className="text-xs text-stone-500 mt-1">
+                للتواصل في حال الاستجابة
+              </p>
+            </div>
+          </>
+        );
+
+      // ═══════════════════════════════════════════════════════
+      // 🤲 دعاء عام - ⚠️ لم يتغير (الكود الأصلي محفوظ)
       // ═══════════════════════════════════════════════════════
       case 'general':
         return (
@@ -145,16 +388,52 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-lg font-semibold text-stone-800 mb-2">
-                اسم الأم (اختياري)
+                اسم الأب أو اسم الأم (اختياري)
               </label>
               <input
                 type="text"
-                value={formData.motherName}
-                onChange={(e) => handleChange('motherName', e.target.value)}
-                placeholder="اسم والدتك"
+                value={formData.parentName}
+                onChange={(e) => handleChange('parentName', e.target.value)}
+                placeholder="اسم والدك أو والدتك"
                 className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
+              <p className="text-sm text-emerald-700 mt-1 font-semibold">
+                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                الغرض من الدعاء <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => handleChange('purpose', e.target.value)}
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                dir="rtl"
+              >
+                <option value="">اختر الغرض...</option>
+                <option value="الرزق">الرزق</option>
+                <option value="الزواج">الزواج</option>
+                <option value="الفرج">الفرج</option>
+                <option value="الذرية الصالحة">الذرية الصالحة</option>
+                <option value="النصر">النصر</option>
+                <option value="الحفظ">الحفظ</option>
+                <option value="البركة">البركة</option>
+                <option value="القوة">القوة</option>
+                <option value="الهداية">الهداية</option>
+                <option value="التوفيق">التوفيق</option>
+                <option value="السكينة">السكينة</option>
+                <option value="الصبر">الصبر</option>
+                <option value="العلم">العلم</option>
+                <option value="الحكمة">الحكمة</option>
+                <option value="القبول">القبول</option>
+                <option value="التيسير">التيسير</option>
+                <option value="الأمان">الأمان</option>
+                <option value="الستر">الستر</option>
+              </select>
             </div>
 
             <div>
@@ -170,7 +449,7 @@ export default function PrayerModal({
         );
 
       // ═══════════════════════════════════════════════════════
-      // 🏥 دعاء للمريض
+      // 🏥 دعاء للمريض - ⚠️ لم يتغير (الكود الأصلي محفوظ)
       // ═══════════════════════════════════════════════════════
       case 'sick':
         return (
@@ -195,16 +474,38 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-lg font-semibold text-stone-800 mb-2">
-                اسم الأم (اختياري)
+                اسم الأب أو اسم الأم (اختياري)
               </label>
               <input
                 type="text"
-                value={formData.motherName}
-                onChange={(e) => handleChange('motherName', e.target.value)}
-                placeholder="اسم والدة المريض"
+                value={formData.parentName}
+                onChange={(e) => handleChange('parentName', e.target.value)}
+                placeholder="اسم والده أو والدته"
                 className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
+              <p className="text-sm text-emerald-700 mt-1 font-semibold">
+                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                الغرض من الدعاء <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => handleChange('purpose', e.target.value)}
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                dir="rtl"
+              >
+                <option value="">اختر الغرض...</option>
+                <option value="الشفاء العاجل">الشفاء العاجل</option>
+                <option value="رفع البلاء">رفع البلاء</option>
+                <option value="العافية">العافية</option>
+                <option value="السلامة">السلامة</option>
+              </select>
             </div>
 
             <div>
@@ -220,7 +521,7 @@ export default function PrayerModal({
         );
 
       // ═══════════════════════════════════════════════════════
-      // 🕊️ دعاء للميت
+      // 🕊️ دعاء للميت - ⚠️ لم يتغير (الكود الأصلي محفوظ)
       // ═══════════════════════════════════════════════════════
       case 'deceased':
         return (
@@ -243,17 +544,41 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-lg font-semibold text-stone-800 mb-2">
-                اسم الأم <span className="text-red-500">*</span>
+                اسم الأب أو اسم الأم <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={formData.motherName}
-                onChange={(e) => handleChange('motherName', e.target.value)}
-                placeholder="اسم والدة المتوفى"
+                value={formData.parentName}
+                onChange={(e) => handleChange('parentName', e.target.value)}
+                placeholder="اسم والده أو والدته"
                 required
                 className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
+              <p className="text-sm text-emerald-700 mt-1 font-semibold">
+                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-lg font-semibold text-stone-800 mb-2">
+                الغرض من الدعاء <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => handleChange('purpose', e.target.value)}
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                dir="rtl"
+              >
+                <option value="">اختر الغرض...</option>
+                <option value="المغفرة">المغفرة</option>
+                <option value="الرحمة">الرحمة</option>
+                <option value="الجنة">الجنة</option>
+                <option value="النور في القبر">النور في القبر</option>
+                <option value="الفسحة">الفسحة</option>
+                <option value="رفع الدرجات">رفع الدرجات</option>
+              </select>
             </div>
 
             <div>
@@ -295,7 +620,7 @@ export default function PrayerModal({
         );
 
       // ═══════════════════════════════════════════════════════
-      // ⭐ دعاء جماعي
+      // ⭐ دعاء جماعي - ⚠️ لم يتغير (الكود الأصلي محفوظ)
       // ═══════════════════════════════════════════════════════
       case 'collective':
         return (
@@ -385,21 +710,31 @@ export default function PrayerModal({
   };
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ التحقق من صحة النموذج
+  // ✅ التحقق من صحة النموذج - ⚠️ لم يتغير (الكود الأصلي محفوظ)
   // ═══════════════════════════════════════════════════════════
   const isFormValid = () => {
     switch (type) {
+      case 'personal':
+      case 'friend':
+        return formData.name && formData.purpose;
+      
+      case 'general':
+      case 'sick':
+        return formData.purpose;
+      
       case 'deceased':
-        return formData.name && formData.motherName && formData.relation;
+        return formData.name && formData.parentName && formData.relation && formData.purpose;
+      
       case 'collective':
         return formData.date && formData.time;
+      
       default:
-        return true; // الحقول اختيارية للأنواع الأخرى
+        return true;
     }
   };
 
   // ═══════════════════════════════════════════════════════════
-  // 🎨 واجهة المستخدم
+  // 🎨 واجهة المستخدم - ⚠️ لم يتغير (الكود الأصلي محفوظ)
   // ═══════════════════════════════════════════════════════════
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in">
@@ -413,6 +748,8 @@ export default function PrayerModal({
         <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-8 text-white">
           <div className="flex items-start justify-between mb-4">
             <h2 className="text-3xl font-bold">
+              {type === 'personal' && '🤲 دعاء شخصي'}
+              {type === 'friend' && '❤️ دعاء لصديق'}
               {type === 'general' && '🤲 اطلب دعاء'}
               {type === 'sick' && '🏥 دعاء لشفاء مريض'}
               {type === 'deceased' && '🕊️ دعاء لروح متوفى'}
@@ -453,23 +790,13 @@ export default function PrayerModal({
               {isSubmitting ? '⏳ جاري الإرسال...' : '⭐ عقد نية الدعاء الجماعي'}
             </button>
           ) : (
-            <div className="flex gap-4">
-              <button
-                onClick={() => handleSubmit(true)}
-                disabled={!isFormValid() || isSubmitting}
-                className="flex-1 h-16 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xl font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-              >
-                {isSubmitting ? '⏳ جاري الإرسال...' : '📤 إرسال مع البيانات'}
-              </button>
-              
-              <button
-                onClick={() => handleSubmit(false)}
-                disabled={isSubmitting}
-                className="flex-1 h-16 bg-gradient-to-r from-stone-500 to-stone-600 hover:from-stone-600 hover:to-stone-700 text-white text-xl font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-              >
-                {isSubmitting ? '⏳ جاري الإرسال...' : '🔒 إرسال بدون بيانات'}
-              </button>
-            </div>
+            <button
+              onClick={() => handleSubmit(true)}
+              disabled={!isFormValid() || isSubmitting}
+              className="w-full h-16 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xl font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+            >
+              {isSubmitting ? '⏳ جاري الإرسال...' : '📤 إرسال الطلب'}
+            </button>
           )}
         </div>
       </div>

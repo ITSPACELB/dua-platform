@@ -2,12 +2,51 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // ============================================================================
-// 📊 GET - جلب إحصائيات المنصة (عامة)
+// 🔐 التحقق من صلاحيات المسؤول
+// ============================================================================
+async function verifyAdmin(request) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    const adminCheck = await query(
+      'SELECT role FROM admin_users WHERE id = $1',
+      [decoded.adminId]
+    );
+
+    if (adminCheck.rows.length === 0) {
+      return null;
+    }
+
+    return { ...decoded, role: adminCheck.rows[0].role };
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// 📊 GET - جلب إحصائيات المنصة (للمدير)
 // ============================================================================
 export async function GET(request) {
     try {
+        // ✅ التحقق من صلاحية المدير
+        const admin = await verifyAdmin(request);
+        
+        if (!admin) {
+            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
         const fingerprint = searchParams.get('fingerprint');
@@ -73,11 +112,11 @@ export async function GET(request) {
 
         // 7️⃣ الدعاء الجماعي الفعّال
         const collectivePrayerResult = await query(
-            `SELECT verse, purpose, custom_text, start_date, end_date 
+            `SELECT content, type, timing, start_date, end_date 
              FROM collective_prayer 
              WHERE is_active = true 
-             AND start_date <= NOW() 
-             AND end_date >= NOW()
+             AND (start_date IS NULL OR start_date <= NOW())
+             AND (end_date IS NULL OR end_date >= NOW())
              ORDER BY created_at DESC 
              LIMIT 1`
         );
@@ -104,8 +143,8 @@ export async function GET(request) {
                     prayers_month,
                     prayers_year,
                     total_stars,
-                    level,
-                    last_achievement_date
+                    current_level,
+                    last_prayer_date
                  FROM user_stats 
                  WHERE user_id = $1`,
                 [userId]
@@ -188,7 +227,7 @@ export async function GET(request) {
     } catch (error) {
         console.error('Stats error:', error);
         return NextResponse.json(
-            { error: 'حدث خطأ أثناء جلب الإحصائيات' },
+            { error: 'حدث خطأ أثناء جلب الإحصائيات', details: error.message },
             { status: 500 }
         );
     }
@@ -199,6 +238,13 @@ export async function GET(request) {
 // ============================================================================
 export async function POST(request) {
     try {
+        // ✅ التحقق من صلاحية المدير
+        const admin = await verifyAdmin(request);
+        
+        if (!admin) {
+            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
+        }
+
         const body = await request.json();
         const { userId, fingerprint, action } = body;
 
@@ -221,8 +267,8 @@ export async function POST(request) {
             if (userResult.rows.length === 0) {
                 // إنشاء مستخدم مؤقت
                 const newUserResult = await query(
-                    `INSERT INTO users (device_fingerprint, created_at) 
-                     VALUES ($1, NOW()) 
+                    `INSERT INTO users (device_fingerprint, is_anonymous, created_at) 
+                     VALUES ($1, true, NOW()) 
                      RETURNING id`,
                     [fingerprint]
                 );
@@ -230,7 +276,7 @@ export async function POST(request) {
                 
                 // إنشاء سجل إحصائيات
                 await query(
-                    `INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year, total_stars, level) 
+                    `INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year, total_stars, current_level) 
                      VALUES ($1, 0, 0, 0, 0, 0, 0, 0)`,
                     [userIdToUpdate]
                 );
@@ -266,7 +312,7 @@ export async function POST(request) {
     } catch (error) {
         console.error('Update stats error:', error);
         return NextResponse.json(
-            { error: 'حدث خطأ أثناء تحديث الإحصائيات' },
+            { error: 'حدث خطأ أثناء تحديث الإحصائيات', details: error.message },
             { status: 500 }
         );
     }
@@ -277,21 +323,26 @@ export async function POST(request) {
 // ============================================================================
 async function checkAndAssignLevels(userId) {
     try {
-        // جلب نسب التفاعل من إعدادات الأدمن
+        // جلب نسب التفاعل من جدول level_ratios
         const ratiosResult = await query(
-            `SELECT setting_value 
-             FROM admin_settings 
-             WHERE setting_key = 'interaction_ratios'`
+            `SELECT level_1, level_2, level_3 
+             FROM level_ratios 
+             ORDER BY id DESC 
+             LIMIT 1`
         );
         
         let ratios = {
-            level1: 5,  // المستوى الأول (3 نجوم + ظهور اسمين)
-            level2: 15, // المستوى الثاني (نجمتين + دعاء مرتين)
-            level3: 30  // المستوى الثالث (نجمة + اختيار آية)
+            level1: 70,  // المستوى الأول (3 نجوم + ظهور اسمين)
+            level2: 20, // المستوى الثاني (نجمتين + دعاء مرتين)
+            level3: 10  // المستوى الثالث (نجمة + اختيار آية)
         };
         
-        if (ratiosResult.rows.length > 0 && ratiosResult.rows[0].setting_value) {
-            ratios = ratiosResult.rows[0].setting_value;
+        if (ratiosResult.rows.length > 0) {
+            ratios = {
+                level1: ratiosResult.rows[0].level_1,
+                level2: ratiosResult.rows[0].level_2,
+                level3: ratiosResult.rows[0].level_3
+            };
         }
 
         // التحقق من آخر إنجاز (72 ساعة)
@@ -347,13 +398,13 @@ async function checkAndAssignLevels(userId) {
                 `UPDATE user_stats 
                  SET 
                     total_stars = total_stars + $1,
-                    level = CASE 
+                    current_level = CASE 
                         WHEN $2 = 'name_display' THEN 1
                         WHEN $2 = 'double_prayer' THEN 2
                         WHEN $2 = 'verse_selection' THEN 3
-                        ELSE level
+                        ELSE current_level
                     END,
-                    last_achievement_date = NOW()
+                    last_prayer_date = NOW()
                  WHERE user_id = $3`,
                 [starsEarned, achievementType, userId]
             );

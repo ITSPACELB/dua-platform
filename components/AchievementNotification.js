@@ -3,6 +3,74 @@
 import { useState, useEffect } from 'react';
 
 /**
+ * 📖 دالة مساعدة لاختيار آية مناسبة حسب نوع الإنجاز
+ */
+function getMotivationalVerse(achievementType) {
+  const verses = {
+    name_display: {
+      text: 'وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ',
+      reference: 'الضحى: 11'
+    },
+    double_prayer: {
+      text: 'وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ',
+      reference: 'غافر: 60'
+    },
+    verse_selection: {
+      text: 'إِنَّ هَٰذَا الْقُرْآنَ يَهْدِي لِلَّتِي هِيَ أَقْوَمُ',
+      reference: 'الإسراء: 9'
+    },
+    points_bonus: {
+      text: 'إِنَّ اللَّهَ لَا يُضِيعُ أَجْرَ الْمُحْسِنِينَ',
+      reference: 'التوبة: 120'
+    },
+    lottery_win: {
+      text: 'وَفِي ذَٰلِكَ فَلْيَتَنَافَسِ الْمُتَنَافِسُونَ',
+      reference: 'المطففين: 26'
+    },
+    achievement_milestone: {
+      text: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا * إِنَّ مَعَ الْعُسْرِ يُسْرًا',
+      reference: 'الشرح: 5-6'
+    },
+    default: {
+      text: 'وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ',
+      reference: 'الضحى: 11'
+    }
+  };
+
+  return verses[achievementType] || verses.default;
+}
+
+/**
+ * 🎊 رسائل التهنئة المتنوعة حسب النجوم
+ */
+function getCongratulationMessage(stars) {
+  const messages = {
+    1: ['مبروك!', 'أحسنت!', 'ما شاء الله!'],
+    2: ['مبروك!', 'رائع!', 'ممتاز!'],
+    3: ['مبروك!', 'إنجاز عظيم!', 'ما شاء الله عليك!'],
+    4: ['مبروك الإنجاز الأسطوري!', 'إنجاز استثنائي!', 'تفوق رائع!']
+  };
+  
+  const messageList = messages[stars] || messages[1];
+  return messageList[Math.floor(Math.random() * messageList.length)];
+}
+
+/**
+ * 🎉 الإيموجي المناسب حسب النجوم
+ */
+function getEmoji(stars) {
+  const emojis = {
+    1: ['🎉', '✨', '🌟'],
+    2: ['🎊', '💫', '⭐'],
+    3: ['🏆', '👑', '💎'],
+    4: ['🔥', '🎯', '🚀']
+  };
+  
+  const emojiList = emojis[stars] || emojis[1];
+  return emojiList[Math.floor(Math.random() * emojiList.length)];
+}
+
+/**
  * 🎉 كومبوننت إشعارات الفوز بالإنجازات
  * يظهر بتصميم فخم عند فوز المستخدم بميزة
  */
@@ -75,12 +143,13 @@ export default function AchievementNotification({ achievement, onClose }) {
           {/* عنوان التهنئة */}
           <div className="mb-4">
             <h3 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-800 mb-2">
-              مبروك! 🎉
+              {getCongratulationMessage(achievement.stars)} {getEmoji(achievement.stars)}
             </h3>
             <div className="flex items-center justify-center gap-2 text-amber-500 text-2xl mb-2">
               {achievement.stars === 1 && '⭐'}
               {achievement.stars === 2 && '⭐⭐'}
               {achievement.stars === 3 && '⭐⭐⭐'}
+              {achievement.stars === 4 && '⭐⭐⭐⭐'}
             </div>
           </div>
 
@@ -101,28 +170,75 @@ export default function AchievementNotification({ achievement, onClose }) {
                 ✨ المزايا التي حصلت عليها:
               </h5>
               <ul className="space-y-2 text-right">
+                {/* عرض الاسم */}
                 {achievement.benefits.displayInMostActive && (
                   <li className="text-gray-700 flex items-start gap-2">
                     <span className="text-amber-600 mt-1">•</span>
                     <span>يظهر اسمك في "الأكثر تفاعلاً" لمدة {achievement.benefits.displayDuration}</span>
                   </li>
                 )}
+                
+                {/* الدعاء المضاعف */}
                 {achievement.benefits.prayersPerDay && (
                   <li className="text-gray-700 flex items-start gap-2">
                     <span className="text-amber-600 mt-1">•</span>
-                    <span>تستطيع الدعاء {achievement.benefits.prayersPerDay} مرات يومياً</span>
+                    <span>تستطيع الدعاء {achievement.benefits.prayersPerDay} مرات يومياً بدلاً من مرة واحدة</span>
                   </li>
                 )}
+                
+                {/* اختيار الآية */}
                 {achievement.benefits.canSelectVerse && (
                   <li className="text-gray-700 flex items-start gap-2">
                     <span className="text-amber-600 mt-1">•</span>
-                    <span>اختر الآية القرآنية التي تريدها</span>
+                    <span>اختر الآية القرآنية التي تريد أن يدعو بها الناس لمدة 30 يوماً</span>
                   </li>
                 )}
+                
+                {/* نقاط إضافية (جديد) */}
+                {achievement.benefits.bonusPoints && (
+                  <li className="text-gray-700 flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>+{achievement.benefits.bonusPoints} نقاط إضافية في كل دعاء</span>
+                  </li>
+                )}
+                
+                {/* مضاعف النقاط (جديد) */}
+                {achievement.benefits.pointsMultiplier && (
+                  <li className="text-gray-700 flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>مضاعف النقاط: ×{achievement.benefits.pointsMultiplier}</span>
+                  </li>
+                )}
+                
+                {/* تقليل Cooldown (جديد) */}
+                {achievement.benefits.reducedCooldown && (
+                  <li className="text-gray-700 flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>فترة انتظار أقل بين الجوائز</span>
+                  </li>
+                )}
+                
+                {/* أولوية في القرعة (جديد) */}
+                {achievement.benefits.lotteryPriority && (
+                  <li className="text-gray-700 flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>أولوية أعلى في القرعة اليومية</span>
+                  </li>
+                )}
+                
+                {/* فرص إضافية (جديد) */}
+                {achievement.benefits.extraChances && (
+                  <li className="text-gray-700 flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>+{achievement.benefits.extraChances} فرص إضافية في القرعة</span>
+                  </li>
+                )}
+                
+                {/* المدة */}
                 {achievement.benefits.duration && (
                   <li className="text-gray-700 flex items-start gap-2">
                     <span className="text-amber-600 mt-1">•</span>
-                    <span>صالحة لمدة {achievement.benefits.duration}</span>
+                    <span className="font-semibold text-purple-700">صالحة لمدة {achievement.benefits.duration}</span>
                   </li>
                 )}
               </ul>
@@ -132,10 +248,10 @@ export default function AchievementNotification({ achievement, onClose }) {
           {/* آية قرآنية */}
           <div className="border-t-2 border-amber-200 pt-4">
             <p className="text-amber-700 text-lg font-semibold mb-2">
-              "وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ"
+              "{getMotivationalVerse(achievement.type).text}"
             </p>
             <p className="text-gray-500 text-sm">
-              الضحى: 11
+              {getMotivationalVerse(achievement.type).reference}
             </p>
           </div>
 
@@ -177,7 +293,10 @@ export function AchievementToast({ message, type = 'success', onClose }) {
     success: 'from-green-500 to-green-600',
     info: 'from-blue-500 to-blue-600',
     warning: 'from-amber-500 to-amber-600',
-    error: 'from-red-500 to-red-600'
+    error: 'from-red-500 to-red-600',
+    achievement: 'from-purple-500 to-purple-600',
+    lottery: 'from-pink-500 to-pink-600',
+    points: 'from-indigo-500 to-indigo-600'
   };
 
   return (
@@ -189,9 +308,12 @@ export function AchievementToast({ message, type = 'success', onClose }) {
       <div className={`bg-gradient-to-r ${colors[type]} text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 max-w-md`}>
         <span className="text-2xl">
           {type === 'success' && '✓'}
-          {type === 'info' && 'ℹ'}
-          {type === 'warning' && '⚠'}
+          {type === 'info' && 'ℹ️'}
+          {type === 'warning' && '⚠️'}
           {type === 'error' && '✕'}
+          {type === 'achievement' && '⭐'}
+          {type === 'lottery' && '🎲'}
+          {type === 'points' && '💫'}
         </span>
         <p className="flex-1 font-medium">{message}</p>
         <button
@@ -268,6 +390,139 @@ export function UpgradePrompt({ upgradeInfo, onClose, onUpgrade }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 🎲 إشعار خاص للفوز في القرعة
+ */
+export function LotteryWinNotification({ winner, onClose }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  const [confetti, setConfetti] = useState([]);
+
+  useEffect(() => {
+    if (winner) {
+      setTimeout(() => setIsVisible(true), 100);
+      
+      // إنشاء كونفيتي
+      const newConfetti = Array.from({ length: 30 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 2,
+        duration: 2 + Math.random() * 2
+      }));
+      setConfetti(newConfetti);
+
+      const timer = setTimeout(() => {
+        handleClose();
+      }, 10000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [winner]);
+
+  const handleClose = () => {
+    setIsExiting(true);
+    setTimeout(() => {
+      setIsVisible(false);
+      if (onClose) onClose();
+    }, 300);
+  };
+
+  if (!winner) return null;
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
+        isVisible && !isExiting ? 'opacity-100' : 'opacity-0'
+      }`}
+      style={{ 
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        backdropFilter: 'blur(10px)'
+      }}
+      onClick={handleClose}
+    >
+      {/* Confetti */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {confetti.map(item => (
+          <div
+            key={item.id}
+            className="absolute text-2xl"
+            style={{
+              left: `${item.left}%`,
+              top: '-20px',
+              animation: `fall ${item.duration}s linear ${item.delay}s infinite`
+            }}
+          >
+            {['🎉', '⭐', '✨', '🎊', '💫'][Math.floor(Math.random() * 5)]}
+          </div>
+        ))}
+      </div>
+
+      <div
+        className={`relative bg-gradient-to-br from-purple-900 via-pink-900 to-purple-900 rounded-3xl shadow-2xl max-w-lg w-full p-8 transform transition-all duration-500 border-4 border-amber-400 ${
+          isVisible && !isExiting 
+            ? 'scale-100 rotate-0' 
+            : 'scale-75 rotate-12'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* الأيقونة */}
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          <div className="bg-gradient-to-r from-amber-400 to-amber-600 rounded-full p-6 shadow-2xl animate-pulse">
+            <span className="text-5xl">🎲</span>
+          </div>
+        </div>
+
+        {/* المحتوى */}
+        <div className="text-center mt-12 text-white">
+          <h3 className="text-4xl font-bold mb-4 animate-bounce">
+            مبروك الفوز! 🎉
+          </h3>
+          
+          <div className="bg-white bg-opacity-20 rounded-2xl p-6 mb-6 backdrop-blur-sm">
+            <p className="text-2xl font-bold mb-2">
+              {winner.displayName || winner.name}
+            </p>
+            <p className="text-lg text-amber-300">
+              فزت في القرعة اليومية!
+            </p>
+          </div>
+
+          <div className="bg-amber-500 bg-opacity-20 rounded-xl p-4 mb-6">
+            <p className="text-lg mb-2 font-semibold">✨ المكافأة:</p>
+            <p className="text-amber-200">
+              ⭐ نجمة واحدة + عرض اسمك لمدة 24 ساعة
+            </p>
+          </div>
+
+          <div className="border-t-2 border-white border-opacity-20 pt-4 mb-6">
+            <p className="text-amber-300 text-lg font-semibold mb-2">
+              "وَفِي ذَٰلِكَ فَلْيَتَنَافَسِ الْمُتَنَافِسُونَ"
+            </p>
+            <p className="text-white text-opacity-70 text-sm">
+              المطففين: 26
+            </p>
+          </div>
+
+          <button
+            onClick={handleClose}
+            className="w-full bg-gradient-to-r from-amber-400 to-amber-600 text-purple-900 font-bold py-4 px-6 rounded-xl hover:from-amber-300 hover:to-amber-500 transition-all duration-300 shadow-2xl hover:shadow-3xl transform hover:scale-105"
+          >
+            الحمد لله! ✨
+          </button>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes fall {
+          to {
+            transform: translateY(100vh) rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 }

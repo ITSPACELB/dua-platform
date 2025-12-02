@@ -77,6 +77,26 @@ export default function PrayerRequestCard({
           </div>
         </div>
       </div>
+
+      {/* ✅ عرض الغرض */}
+      {request.purpose && (
+        <div className="mb-3 p-3 bg-amber-50 border-r-4 border-amber-400 rounded-lg">
+          <span className="text-amber-600 font-bold text-sm">🎯 الغرض: </span>
+          <span className="text-amber-800 font-medium">{request.purpose}</span>
+        </div>
+      )}
+
+      {/* ✅ عرض الآية القرآنية */}
+      {request.quranicVerse && (
+        <div className="mb-4 p-4 bg-green-50 border-r-4 border-green-500 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-green-600 font-bold text-sm">📖 آية قرآنية</span>
+          </div>
+          <p className="text-green-800 leading-loose text-lg" style={{ fontFamily: 'Markazi Text, serif' }} dir="rtl">
+            {request.quranicVerse}
+          </p>
+        </div>
+      )}
       
       {!request.hasPrayed ? (
         <button

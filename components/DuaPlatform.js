@@ -1,7 +1,29 @@
 'use client'
 import { useState, useEffect } from 'react';
-import { Users, Heart, Menu, X, Star, TrendingUp, Award, Share2, Download, BookOpen, Info, HelpCircle, Bell } from 'lucide-react';
+import { Share2, Download, Bell, Star } from 'lucide-react';
 import AchievementNotification, { AchievementToast, UpgradePrompt } from './AchievementNotification';
+import AboutPage from './pages/AboutPage'
+import FAQPage from './pages/FAQPage'
+import LibraryPage from './LibraryPage'
+import ProfileInfoPage from './pages/ProfileInfoPage'
+import StatsPage from './pages/StatsPage'
+import AchievementsPage from './pages/AchievementsPage'
+import AdminPage from './pages/AdminPage'
+import AdminLogin from './pages/AdminLogin'
+import PrayerRequestsPage from './PrayerRequestsPage'
+import CollectivePrayerCard from './shared/CollectivePrayerCard'
+import MenuBar from './shared/MenuBar'
+import PrayerModal from './shared/PrayerModal'
+import PrayerCard from './shared/PrayerCard'
+import SelectedVerseDisplay from './shared/SelectedVerseDisplay'
+import TodayActiveUsers from './shared/TodayActiveUsers'
+// ✅ إضافة: الشارات الاحترافية
+import VerificationBadge, { createVerificationLevel } from './shared/VerificationBadge';
+
+
+// ============================================================================
+// 🔐 استيراد نظام البصمة
+// ============================================================================
 import { 
   getUserStatus, 
   shouldShowFingerprintPrompt,
@@ -10,6 +32,21 @@ import {
   getOrCreateFingerprint
 } from '@/lib/deviceFingerprint';
 
+// ============================================================================
+// 📊 استيراد نظام المستويات والإنجازات
+// ============================================================================
+import { 
+  calculateUserLevel,
+  getUpgradeMessage,
+  getLevelInfo,
+  ACHIEVEMENTS 
+} from '@/lib/levelsSystem';
+
+import MyAccount from './MyAccount';
+import { quranicDuas, prayerPurposes, getVerseByPurpose } from '@/lib/verses';
+import { getVerseText } from '@/lib/utils';
+
+ 
 // ============================================================================
 // 📖 الآيات القرآنية المخصصة
 // ============================================================================
@@ -40,23 +77,6 @@ const quranVerses = {
 };
 
 // ============================================================================
-// 🎯 أغراض الدعاء القرآنية
-// ============================================================================
-const prayerPurposes = {
-  general: [
-    'الرزق', 'الزواج', 'الفرج', 'الذرية الصالحة', 'النصر', 'الحفظ',
-    'البركة', 'القوة', 'الهداية', 'التوفيق', 'السكينة', 'الصبر',
-    'العلم', 'الحكمة', 'القبول', 'التيسير', 'الأمان', 'الستر'
-  ],
-  deceased: [
-    'المغفرة', 'الرحمة', 'الجنة', 'النور في القبر', 'الفسحة', 'رفع الدرجات'
-  ],
-  sick: [
-    'الشفاء العاجل', 'رفع البلاء', 'العافية', 'السلامة'
-  ]
-};
-
-// ============================================================================
 // 💬 الرسائل التشجيعية
 // ============================================================================
 const encouragingMessages = [
@@ -72,10 +92,60 @@ export default function DuaPlatform() {
   // 🎨 الحالات الأساسية
   // ============================================================================
   const [showWelcome, setShowWelcome] = useState(true);
-  const [showMenu, setShowMenu] = useState(false);
   const [showPrayerForm, setShowPrayerForm] = useState(false);
   const [selectedPrayerType, setSelectedPrayerType] = useState('personal');
+  const [currentPage, setCurrentPage] = useState('home');
+  const [user, setUser] = useState(null);
+  const [awarenessSettings, setAwarenessSettings] = useState(null);
   
+  // ============================================================================
+  // ⚙️ إعدادات المنصة الشاملة
+  // ============================================================================
+  const [platformSettings, setPlatformSettings] = useState({
+    banner: null,
+    awareness: null,
+    collectivePrayer: null,
+    notifications: null,
+    tabsVisibility: {
+      home: true,
+      prayers: true,
+      achievements: true,
+      profile: true,
+      notifications: true
+    },
+    topActive: null
+  });
+
+
+// تحميل بيانات المستخدم
+useEffect(() => {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    setUser(JSON.parse(userData));
+  }
+}, []);
+
+// أضف هذا:
+// تحميل إعدادات التوعية
+useEffect(() => {
+  fetch('/api/public/settings?key=awareness')
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.setting) {
+  setAwarenessSettings(data.setting.value);
+}
+    })
+    .catch(err => console.error('Error loading awareness:', err));
+}, []);
+
+// دالة تسجيل الخروج
+const handleLogout = () => {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+  setUser(null);
+  setCurrentPage('home');
+  window.location.reload();
+};
   // ============================================================================
   // 🏆 حالات الإنجازات
   // ============================================================================
@@ -110,18 +180,20 @@ export default function DuaPlatform() {
   const [awareness, setAwareness] = useState(null);
   const [prayerRequests, setPrayerRequests] = useState([]);
   const [userStats, setUserStats] = useState(null);
-  const [selectedVerse, setSelectedVerse] = useState(null);
+  const [activeVerse, setActiveVerse] = useState(null);
+  const [loadingVerse, setLoadingVerse] = useState(false);
+  const [allowedPrayers, setAllowedPrayers] = useState(1);
+
+
   
   // ============================================================================
   // 📝 نموذج طلب الدعاء
   // ============================================================================
-  const [prayerForm, setPrayerForm] = useState({
-    type: 'personal',
-    name: '',
-    motherOrFatherName: '',
-    purpose: '',
-    isMotherName: true
-  });
+  
+  
+  const generateFingerprint = () => {
+    return getOrCreateFingerprint();
+  };
 
   // ============================================================================
   // ⏱️ شاشة السلام عليكم الافتتاحية
@@ -134,21 +206,71 @@ export default function DuaPlatform() {
   }, []);
 
   // ============================================================================
-  // 📡 تحميل البيانات من API
+// 📡 تحميل البيانات من API
+  // ✅ تم تعطيل الميزات المؤقتة لتجنب الأخطاء
   // ============================================================================
   useEffect(() => {
     if (!showWelcome) {
       loadData();
-      checkFingerprintSettings();
-      loadNotifications();
-      initOneSignal();
+      loadPlatformSettings();
+      // ❌ معطل مؤقتاً - يسبب 403 error
+      // checkFingerprintSettings();
+      
+      // ❌ معطل مؤقتاً - API غير موجود (404 error)
+      // loadNotifications();
+      
+      // ❌ معطل مؤقتاً - محظور من AdBlockers ويعمل فقط على yojeeb.com
+      // initOneSignal();
     }
   }, [showWelcome]);
 
+  // ════════════════════════════════════════════════════════
+  // 🔄 تحديث تلقائي للدعاء الجماعي كل دقيقة
+  // ════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!platformSettings.collectivePrayer?.isActive) return;
+    
+    const interval = setInterval(() => {
+      loadPlatformSettings();
+    }, 60000); // كل 60 ثانية
+
+    return () => clearInterval(interval);
+  }, [platformSettings.collectivePrayer?.isActive]);
+
+
+  // جلب الآية المختارة النشطة
+useEffect(() => {
+  if (!showWelcome) {
+    loadActiveVerse();
+  }
+}, [showWelcome]);
+
+const loadActiveVerse = async () => {
+  setLoadingVerse(true);
+  try {
+    const response = await fetch('/api/achievements?action=getActiveVerse');
+    if (response.ok) {
+      const data = await response.json();
+      setActiveVerse(data.verse);
+    }
+  } catch (error) {
+    console.error('Error loading verse:', error);
+  } finally {
+    setLoadingVerse(false);
+  }
+};
+  
   // ============================================================================
   // 🔔 تهيئة OneSignal (المرحلة 8 - جديد)
   // ============================================================================
   const initOneSignal = async () => {
+    // ✅ FIXED: تعطيل OneSignal في localhost
+    if (typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      console.log('OneSignal disabled in development (localhost)');
+      return;
+    }
+
     try {
       // التحقق من دعم المتصفح للإشعارات
       if (!('Notification' in window)) {
@@ -272,11 +394,16 @@ export default function DuaPlatform() {
   const loadData = async () => {
     try {
       // جلب الإحصائيات والإعدادات
-      const response = await fetch('/api/stats', {
-        headers: {
-          'x-device-fingerprint': generateFingerprint()
-        }
-      });
+      // ✅ FIXED: إضافة Token إذا كان موجوداً
+      const token = localStorage.getItem('token');
+      const headers = {
+        'x-device-fingerprint': generateFingerprint()
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch('/api/stats', { headers });
       
       if (response.ok) {
         const data = await response.json();
@@ -284,24 +411,29 @@ export default function DuaPlatform() {
         if (data.stats) {
           setStats({
             believersCount: data.stats.believersCount || 0,
-            todayPrayers: data.stats.todayPrayers || 0,
-            activeRequests: data.stats.activeRequests || 0
+            todayPrayers: data.stats.todayPrayersCount || 0,        // ✅ FIX: كان todayPrayers
+            activeRequests: data.stats.activeRequestsCount || 0     // ✅ FIX: كان activeRequests
           });
           
           if (data.stats.banner) setBanner(data.stats.banner);
-          if (data.stats.topActiveUsers) setTopActiveUsers(data.stats.topActiveUsers);
+          // ✅ إصلاح: إضافة حفظ التوعية
+          if (data.stats.awareness) setAwareness(data.stats.awareness);
+          if (data.stats.todayActiveUsers) setTopActiveUsers(data.stats.todayActiveUsers);  // ✅ FIX: كان topActiveUsers
           if (data.stats.collectivePrayer) setCollectivePrayer(data.stats.collectivePrayer);
           if (data.stats.userStats) {
             setUserStats(data.stats.userStats);
             
             // التحقق من الإنجازات الجديدة
             checkForNewAchievements(data.stats.userStats);
+            
+            // التحقق من إمكانية الترقية
+            checkUpgradePrompt(data.stats.userStats);
           }
         }
       }
 
       // جلب طلبات الدعاء النشطة
-      const requestsResponse = await fetch('/api/prayers');
+      const requestsResponse = await fetch(`/api/prayer-request?limit=50&fingerprint=${generateFingerprint()}`);
       if (requestsResponse.ok) {
         const requestsData = await requestsResponse.json();
         if (requestsData.requests) {
@@ -313,6 +445,103 @@ export default function DuaPlatform() {
     }
   };
 
+  // ============================================================================
+// ⚙️ تحميل إعدادات المنصة الشاملة
+  // ============================================================================
+  const loadPlatformSettings = async () => {
+    try {
+      const response = await fetch('/api/public/settings');
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.settings) {
+          // تحويل array إلى object
+          const settingsObj = {};
+          data.settings.forEach((setting, index) => {
+            // التعرف على نوع الإعداد من المحتوى
+            const value = setting.value || setting;
+            
+            if (value?.links && value?.content) {
+              settingsObj.awareness = value;
+            } else if (value?.text && value?.backgroundColor) {
+              settingsObj.banner = value;
+            } else if (value?.verseText || value?.type === 'verse') {
+              settingsObj.collectivePrayer = value;
+            } else if (value?.pushEnabled !== undefined) {
+              settingsObj.notifications = value;
+            } else if (value?.home !== undefined) {
+              settingsObj.tabsVisibility = value;
+            } else if (value?.mode && value?.displayCount) {
+              settingsObj.topActive = value;
+            }
+          });
+          
+          // ════════════════════════════════════════════════════════
+          // ✅ جلب الدعاء الجماعي مباشرة من API (مستقل عن platform_settings)
+          // ════════════════════════════════════════════════════════
+          try {
+            const prayerResponse = await fetch('/api/collective-prayer/pray');
+            if (prayerResponse.ok) {
+              const prayerData = await prayerResponse.json();
+              if (prayerData.success && prayerData.prayer) {
+                // تفعيل الدعاء الجماعي تلقائياً من البيانات المباشرة
+                settingsObj.collectivePrayer = {
+                  isActive: true,
+                  id: prayerData.prayer.id,
+                  verseText: prayerData.prayer.prayer_text,
+                  customPrayer: prayerData.prayer.prayer_text,
+                  verseReference: prayerData.prayer.verse_reference,
+                  scheduled_datetime: prayerData.prayer.scheduled_datetime,
+                  status: prayerData.prayer.status,
+                  timeRemaining: prayerData.prayer.timeRemaining,
+                  timeUntilEnd: prayerData.prayer.timeUntilEnd,
+                  participantCount: prayerData.prayer.participantCount,
+                  final_participant_count: prayerData.prayer.final_participant_count
+                };
+              } else {
+                // لا يوجد دعاء نشط - تعطيل
+                settingsObj.collectivePrayer = {
+                  isActive: false
+                };
+              }
+            }
+          } catch (err) {
+            console.error('Error loading collective prayer:', err);
+            // في حالة الخطأ - تعطيل الدعاء الجماعي
+            settingsObj.collectivePrayer = {
+              isActive: false
+            };
+          }
+         
+          setPlatformSettings(prev => ({
+            ...prev,
+            ...settingsObj
+          }));
+
+          // تحديث عدد الدعوات المسموح بها
+          if (user) {
+            try {
+              const achievementsRes = await fetch(`/api/achievements?userId=${user.id}`);
+              if (achievementsRes.ok) {
+                const achievementsData = await achievementsRes.json();
+                const hasDoublePrayer = achievementsData.achievements?.some(
+                  a => a.achievement_type === 'double_prayer' && 
+                       new Date(a.expires_at) > new Date()
+                );
+                setAllowedPrayers(hasDoublePrayer ? 2 : 1);
+              }
+            } catch (error) {
+              console.error('Error checking achievements:', error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading platform settings:', error);
+    }
+  };
+
+  
   // ============================================================================
   // 🎉 التحقق من الإنجازات الجديدة
   // ============================================================================
@@ -382,33 +611,88 @@ export default function DuaPlatform() {
   };
 
   // ============================================================================
-  // 🤲 التفاعل مع الدعاء
+  // 🎯 التحقق من إمكانية الترقية (جديد)
   // ============================================================================
-  const prayForRequest = async (requestId) => {
-    try {
-      const response = await fetch('/api/prayers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-device-fingerprint': generateFingerprint()
-        },
-        body: JSON.stringify({ requestId })
-      });
+  const checkUpgradePrompt = (stats) => {
+    if (!stats || !stats.user) return;
 
-      if (response.ok) {
-        const randomMessage = encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)];
-        setToastMessage({
-          message: randomMessage,
-          type: 'success'
-        });
-        
-        // إعادة تحميل البيانات
-        loadData();
-      }
-    } catch (error) {
-      console.error('Error praying:', error);
+    const userData = stats.user;
+    const upgradeInfo = getUpgradeMessage(userData);
+
+    if (upgradeInfo) {
+      // عرض رسالة الترقية بعد 3 ثواني
+      setTimeout(() => {
+        setUpgradePromptInfo(upgradeInfo);
+      }, 3000);
     }
   };
+
+  // ============================================================================
+  // 🔍 التحقق من الحد اليومي للدعاء
+  // ============================================================================
+  const checkPrayerLimit = async () => {
+    try {
+      const response = await fetch('/api/stats', {
+        headers: {
+          'x-device-fingerprint': generateFingerprint()
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const statsData = data.stats?.userStats;
+        
+        if (statsData && statsData.prayers_today >= allowedPrayers) {
+          return {
+            allowed: false,
+            message: allowedPrayers === 2 
+              ? 'لقد وصلت للحد اليومي (دعوتان) - عد غداً!' 
+              : 'دعوة واحدة في اليوم فقط - عد غداً!'
+          };
+        }
+      }
+      
+      return { allowed: true };
+    } catch (error) {
+      console.error('Error checking prayer limit:', error);
+      return { allowed: true };
+    }
+  };
+
+  // ============================================================================
+  // 🤲 التفاعل مع الدعاء
+  // ============================================================================
+const prayForRequest = async (requestId) => {
+  try {
+    const response = await fetch('/api/prayer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-fingerprint': generateFingerprint()
+      },
+      body: JSON.stringify({ 
+        action: 'record_prayer',
+        deviceFingerprint: generateFingerprint(),
+        requestId 
+      })
+    });
+
+    if (response.ok) {
+      const randomMessage = encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)];
+      setToastMessage({
+        message: randomMessage,
+        type: 'success'
+      });
+      
+      // ✅ FIX: تحديث hasPrayed بدل الحذف
+      setPrayerRequests(prev => 
+        prev.map(r => r.id === requestId ? { ...r, hasPrayed: true } : r)
+      );
+    }
+  } catch (error) {
+    console.error('Error praying:', error);
+  }
+};
 
   const submitPrayerRequest = async () => {
     if (!prayerForm.name || !prayerForm.purpose) {
@@ -432,21 +716,22 @@ export default function DuaPlatform() {
       });
     }
 
-    try {
-      const response = await fetch('/api/prayer-request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-device-fingerprint': generateFingerprint()
-        },
-        body: JSON.stringify({
-          type: prayerForm.type,
-          name: prayerForm.name,
-          motherOrFatherName: prayerForm.motherOrFatherName,
-          isMotherName: prayerForm.isMotherName,
-          purpose: prayerForm.purpose
-        })
-      });
+try {
+  const response = await fetch('/api/prayer-request', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-device-fingerprint': generateFingerprint()
+    },
+    body: JSON.stringify({
+      prayer_type: prayerForm.type,
+      name: prayerForm.name,
+      parent_name: prayerForm.motherOrFatherName || null,
+      purpose: prayerForm.purpose,
+      quranic_verse: prayerForm.quranicVerse || null,
+      fingerprint: generateFingerprint()
+    })
+  });
 
       if (response.ok) {
         setToastMessage({
@@ -454,13 +739,6 @@ export default function DuaPlatform() {
           type: 'success'
         });
         setShowPrayerForm(false);
-        setPrayerForm({
-          type: 'personal',
-          name: '',
-          motherOrFatherName: '',
-          purpose: '',
-          isMotherName: true
-        });
         loadData();
       }
     } catch (error) {
@@ -472,15 +750,61 @@ export default function DuaPlatform() {
     }
   };
 
+    // ============================================================================
+  // 🎬 شاشة الترحيب
+    // ============================================================================
+// ============================================================================
+  // 📄 التوجيه للصفحات (المرحلة 9)
   // ============================================================================
-  // 🔐 توليد البصمة
-  // ============================================================================
-  const generateFingerprint = () => {
-    return getOrCreateFingerprint();
-  };
+  if (currentPage === 'profile') {
+    return <ProfileInfoPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} />;
+  }
+
+  if (currentPage === 'stats') {
+    return <StatsPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} />;
+  }
+
+  if (currentPage === 'achievements') {
+    return <AchievementsPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} />;
+  }
+
+  if (currentPage === 'library') {
+    return <LibraryPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} />;
+  }
+
+  if (currentPage === 'about') {
+    return <AboutPage user={user} onNavigate={setCurrentPage} />;
+  }
+
+  if (currentPage === 'faq') {
+    return <FAQPage user={user} onNavigate={setCurrentPage} />;
+  }
+
+  if (currentPage === 'account') {
+    return <MyAccount />;
+  }
+  
+ if (currentPage === 'admin') {
+  // 🔐 التحقق من تسجيل الدخول
+  const authToken = localStorage.getItem('auth_token');
+  const userRole = localStorage.getItem('userRole');
+  const isAdminLoggedIn = authToken && (userRole === 'admin' || userRole === 'super_admin');
+  
+  // إذا مش مسجل دخول - أظهر صفحة Login
+  if (!isAdminLoggedIn) {
+    return <AdminLogin onLoginSuccess={() => window.location.reload()} />;
+  }
+  
+  // إذا مسجل دخول - أظهر الأدمن
+  return <AdminPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} />;
+}
+
+  if (currentPage === 'prayer-requests') {
+    return <PrayerRequestsPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} />;
+  }
 
   // ============================================================================
-  // 🎬 شاشة الترحيب
+  // 👋 شاشة الترحيب
   // ============================================================================
   if (showWelcome) {
     return (
@@ -502,6 +826,20 @@ export default function DuaPlatform() {
   // ============================================================================
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-100 to-stone-200" style={{ fontFamily: 'Markazi Text, serif' }}>
+      
+      {/* البانر العلوي القابل للتحكم */}
+      {platformSettings.banner?.isActive && (
+        <div 
+          className="w-full text-center py-3 px-4 text-sm font-bold"
+          style={{
+            backgroundColor: platformSettings.banner.backgroundColor || '#10b981',
+            color: platformSettings.banner.textColor || '#ffffff'
+          }}
+        >
+          {platformSettings.banner.text}
+        </div>
+      )}
+      
       {/* إشعارات الإنجازات */}
       {currentAchievement && (
         <AchievementNotification
@@ -652,95 +990,17 @@ export default function DuaPlatform() {
         </div>
       )}
 
-      {/* القائمة الجانبية */}
-      {showMenu && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setShowMenu(false)}>
-          <div 
-            className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl p-6 overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-bold text-stone-800">القائمة</h2>
-              <button onClick={() => setShowMenu(false)} className="text-stone-600 hover:text-stone-800">
-                <X size={32} />
-              </button>
-            </div>
-
-            <nav className="space-y-4">
-              {/* زر حسابي (المرحلة 7) */}
-              <a 
-                href="/account" 
-                className="flex items-center gap-3 text-stone-700 hover:text-emerald-700 text-2xl py-3 transition-colors"
-              >
-                <Users size={28} />
-                حسابي
-              </a>
-
-              {/* زر المكتبة (المرحلة 9 - جديد) */}
-              <a 
-                href="/library" 
-                className="flex items-center gap-3 text-stone-700 hover:text-emerald-700 text-2xl py-3 transition-colors"
-              >
-                <BookOpen size={28} />
-                المكتبة
-              </a>
-
-              {/* زر عن المنصة (المرحلة 9 - جديد) */}
-              <a 
-                href="/about" 
-                className="flex items-center gap-3 text-stone-700 hover:text-emerald-700 text-2xl py-3 transition-colors"
-              >
-                <Info size={28} />
-                عن المنصة
-              </a>
-
-              <button className="flex items-center gap-3 text-stone-700 hover:text-emerald-700 text-2xl py-3 transition-colors w-full text-right">
-                <HelpCircle size={28} />
-                المساعدة
-              </button>
-            </nav>
-
-            {/* إحصائيات المستخدم */}
-            {userStats && (
-              <div className="mt-8 p-4 bg-emerald-50 rounded-xl">
-                <h3 className="text-xl font-bold text-emerald-900 mb-3">إحصائياتك</h3>
-                <div className="space-y-2 text-emerald-800">
-                  <p className="text-lg">🤲 {userStats.totalPrayers || 0} دعوة</p>
-                  <p className="text-lg">⭐ {userStats.totalStars || 0} نجمة</p>
-                  <p className="text-lg">🏆 المستوى {userStats.level || 1}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+{/* MenuBar الجديد */}
+      <MenuBar 
+        user={user} 
+        currentPage={currentPage} 
+        onNavigate={setCurrentPage} 
+        onLogout={handleLogout}
+        tabsVisibility={platformSettings.tabsVisibility}
+      />
 
       {/* المحتوى الرئيسي */}
       <div className="max-w-2xl mx-auto px-4 py-6">
-        {/* الهيدر */}
-        <header className="flex justify-between items-center mb-6">
-          <button 
-            onClick={() => setShowMenu(true)}
-            className="text-stone-700 hover:text-stone-900"
-          >
-            <Menu size={32} />
-          </button>
-          
-          <h1 className="text-5xl font-bold text-emerald-800">يُجيب</h1>
-          
-          {/* جرس الإشعارات (المرحلة 8 - جديد) */}
-          <button 
-            onClick={() => setShowNotifications(true)}
-            className="relative text-stone-700 hover:text-stone-900"
-          >
-            <Bell size={32} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-        </header>
 
         {/* الآية الرئيسية */}
         <div className="bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-2xl p-6 mb-6 text-center shadow-xl">
@@ -752,79 +1012,330 @@ export default function DuaPlatform() {
           </p>
         </div>
 
-        {/* البانر */}
-        {banner && banner.is_active && (
-          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-2xl p-6 mb-6 text-center shadow-lg">
-            <h2 className="text-3xl font-bold mb-2">{banner.title}</h2>
-            <p className="text-xl leading-relaxed">{banner.content}</p>
-          </div>
+        {/* البانر المخصص (إذا كان من API القديم) */}
+        {banner && !platformSettings.banner?.isActive && (
+          <a 
+            href={banner.link || '#'} 
+            target={banner.link ? "_blank" : "_self"}
+            rel="noopener noreferrer"
+            className="block bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-2xl p-6 mb-6 text-center shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all"
+          >
+            <p className="text-2xl leading-relaxed font-bold">{banner.content}</p>
+            {banner.link && (
+              <p className="text-sm text-amber-100 mt-2">اضغط للمزيد ←</p>
+            )}
+          </a>
         )}
 
         {/* الإحصائيات */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-white rounded-xl p-4 text-center shadow-md">
             <div className="text-3xl mb-2">👥</div>
-            <p className="text-2xl font-bold text-emerald-700">{stats.believersCount.toLocaleString()}</p>
+            {/* ✅ إصلاح: إضافة default value */}
+            <p className="text-2xl font-bold text-emerald-700">{(stats.believersCount || 0).toLocaleString()}</p>
             <p className="text-sm text-stone-600">مؤمن</p>
           </div>
           <div className="bg-white rounded-xl p-4 text-center shadow-md">
             <div className="text-3xl mb-2">🤲</div>
-            <p className="text-2xl font-bold text-blue-700">{stats.todayPrayers.toLocaleString()}</p>
+            {/* ✅ إصلاح: إضافة default value */}
+            <p className="text-2xl font-bold text-blue-700">{(stats.todayPrayers || 0).toLocaleString()}</p>
             <p className="text-sm text-stone-600">دعاء اليوم</p>
           </div>
           <div className="bg-white rounded-xl p-4 text-center shadow-md">
             <div className="text-3xl mb-2">📋</div>
-            <p className="text-2xl font-bold text-purple-700">{stats.activeRequests}</p>
+            {/* ✅ إصلاح: إضافة default value */}
+            <p className="text-2xl font-bold text-purple-700">{(stats.activeRequests || 0)}</p>
             <p className="text-sm text-stone-600">طلب نشط</p>
           </div>
         </div>
 
-        {/* الأكثر تفاعلاً */}
-        {topActiveUsers && topActiveUsers.length > 0 && (
-          <div className="bg-white rounded-2xl p-6 mb-6 shadow-lg">
-            <h2 className="text-3xl font-bold text-stone-800 mb-4 text-center">
-              ⭐ الأكثر تفاعلاً
-            </h2>
-            <div className="space-y-3">
-              {topActiveUsers.map((user, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-bold text-emerald-700">#{index + 1}</span>
+{/* ✅ الفائزان بالقرعة اليومية */}
+{topActiveUsers && topActiveUsers.length >= 2 && (
+  <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-900/50 dark:to-stone-900/50 rounded-2xl p-8 mb-6 shadow-lg border border-stone-200 dark:border-stone-700">
+    
+    {/* العنوان */}
+    <div className="text-center mb-8">
+      <div className="inline-flex items-center gap-3 mb-2">
+        <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
+        <h2 className="text-2xl font-bold text-stone-800 dark:text-stone-100">
+          الفائزان بالقرعة اليومية
+        </h2>
+        <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
+      </div>
+      <p className="text-sm text-stone-600 dark:text-stone-400">
+        مبارك لهم! سيظهر اسمهم في الصفحة الرئيسية لمدة 24 ساعة
+      </p>
+    </div>
+
+    {/* الفائزان */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {topActiveUsers.slice(0, 2).map((winner, index) => {
+        const badge = createVerificationLevel(
+          winner.level === 3 ? 98 : winner.level === 2 ? 85 : 80,
+          'active',
+          0
+        );
+
+        return (
+          <div 
+            key={winner.id || index}
+            className="relative bg-white dark:bg-stone-800 rounded-xl p-6 shadow-md hover:shadow-xl transition-all duration-300 border border-stone-200 dark:border-stone-700"
+          >
+            {/* شريط علوي */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 rounded-t-xl"></div>
+            
+            {/* رقم الترتيب */}
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full shadow-lg">
+              <span className="text-white text-sm font-bold flex items-center gap-1">
+                {index === 0 ? '🥇' : '🥈'} الفائز {index === 0 ? 'الأول' : 'الثاني'}
+              </span>
+            </div>
+
+            {/* المحتوى */}
+            <div className="mt-4">
+              {/* معلومات الفائز */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/30 flex items-center justify-center border-2 border-amber-200 dark:border-amber-800">
+                  <span className="text-3xl">{index === 0 ? '👑' : '🏆'}</span>
+                </div>
+                
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xl font-bold text-stone-800 dark:text-stone-100">
+                      {winner.name || 'فائز'}
+                    </p>
+                    {badge && (
+                      <VerificationBadge 
+                        level={badge} 
+                        size="md"
+                        showTooltip={true}
+                      />
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    عضو متميز في المنصة
+                  </p>
+                </div>
+              </div>
+
+              {/* الإحصائيات */}
+              <div className="bg-stone-50 dark:bg-stone-900/50 rounded-lg p-4 border border-stone-200 dark:border-stone-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <span className="text-xl">🤲</span>
+                    </div>
                     <div>
-                      <p className="text-xl font-semibold text-stone-800">{user.full_name}</p>
-                      {user.verification_badge && (
-                        <span className="text-blue-600 text-sm">✓ موثق</span>
-                      )}
+                      <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {winner.prayerCount || 0}
+                      </p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">
+                        دعاء اليوم
+                      </p>
                     </div>
                   </div>
-                  <div className="text-left">
-                    <p className="text-xl font-bold text-emerald-700">{user.total_prayers}</p>
-                    <p className="text-xs text-stone-600">دعوة</p>
+                  
+                  <div className="text-right">
+                    <div className="inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-semibold">
+                      <span>✓</span>
+                      <span>مؤهل للعرض</span>
+                    </div>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* المكافأة */}
+              <div className="mt-4 flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
+                <span className="text-lg">🎁</span>
+                <span>عرض الاسم في الصفحة الرئيسية لمدة 24 ساعة</span>
+              </div>
             </div>
+          </div>
+        );
+      })}
+    </div>
+
+    {/* رسالة تحفيزية */}
+    <div className="mt-8 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-xl p-5 border-2 border-dashed border-amber-200 dark:border-amber-800">
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+          <span className="text-2xl">💫</span>
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-amber-800 dark:text-amber-300 text-lg mb-1">
+            تريد أن يظهر اسمك هنا؟
+          </p>
+          <p className="text-stone-700 dark:text-stone-300 text-sm leading-relaxed">
+            ادعُ لـ 3 طلبات على الأقل بإخلاص وادخل القرعة اليومية تلقائياً
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* 📖 الفائز باختيار الآية - يظهر فقط عند وجود فائز */}
+{activeVerse && !loadingVerse && activeVerse.verse_text && activeVerse.winner_name && (
+  <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 rounded-3xl p-6 mb-6 shadow-xl border-2 border-purple-300">
+    {/* العنوان */}
+    <div className="text-center mb-6">
+      <div className="inline-flex items-center gap-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-full shadow-lg">
+        <span className="text-2xl">📖</span>
+        <h2 className="text-2xl font-bold">الفائز باختيار الآية</h2>
+        <span className="text-2xl">👑</span>
+      </div>
+    </div>
+
+    {/* بطاقة الفائز */}
+    <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-purple-200 mb-4">
+      <div className="flex items-center gap-4 mb-4">
+        {/* أيقونة الإنجاز */}
+        <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center border-2 border-purple-300">
+          <span className="text-4xl">👑</span>
+        </div>
+
+        {/* معلومات الفائز */}
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-2xl font-bold text-stone-800">
+              {activeVerse.winner_name}
+            </p>
+            {/* الشارة الذهبية */}
+            <VerificationBadge 
+              level={createVerificationLevel(98, 'active', 0)} 
+              size="lg"
+              showTooltip={true}
+            />
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-bold">
+              ⭐⭐⭐ إنجاز ذهبي - 30 يوم
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* الآية المختارة */}
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border-2 border-purple-200">
+        <p className="text-xs text-purple-600 font-bold mb-2">الآية المختارة:</p>
+        <p className="text-purple-900 text-lg leading-relaxed font-semibold" dir="rtl">
+          {activeVerse.verse_text}
+        </p>
+        {activeVerse.verse_reference && (
+          <p className="text-purple-600 text-sm mt-2">
+            📍 {activeVerse.verse_reference}
+          </p>
+        )}
+      </div>
+    </div>
+
+    {/* رسالة تحفيزية */}
+    <div className="bg-gradient-to-r from-purple-100 to-indigo-100 rounded-xl p-4 border-2 border-dashed border-purple-300">
+      <p className="text-center text-stone-700 leading-relaxed">
+        <span className="font-bold text-purple-700 text-lg">💫 تريد أن تختار الآية القادمة؟</span>
+        <br />
+        <span className="text-base">استمر في التفاعل لمدة 30 يوماً واحصل على الإنجاز الذهبي!</span>
+      </p>
+    </div>
+  </div>
+)}
+
+        {/* ✅ قسم إنجازات المستخدم الحالي (جديد) */}
+        {userStats && userStats.user && (
+          <div className="bg-gradient-to-br from-purple-50 via-white to-blue-50 rounded-2xl p-6 mb-6 shadow-xl border-2 border-purple-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-2xl font-bold text-purple-800 mb-1">
+                  {getLevelInfo(userStats.user).displayName}
+                </h3>
+                <p className="text-purple-600">
+                  {getLevelInfo(userStats.user).levelName}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 justify-end mb-1">
+                  <span className="text-3xl">⭐</span>
+                  <span className="text-3xl font-bold text-amber-600">
+                    {userStats.totalStars || 0}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">نجوم</p>
+              </div>
+            </div>
+
+            {/* الإنجازات النشطة */}
+            {userStats.activeAchievements && userStats.activeAchievements.length > 0 && (
+              <div className="space-y-3 mt-4">
+                <h4 className="text-lg font-bold text-purple-700 mb-2">
+                  🏆 الإنجازات النشطة:
+                </h4>
+                {userStats.activeAchievements.map((achievement, index) => {
+                  const achievementInfo = ACHIEVEMENTS[achievement.achievement_type?.toUpperCase()] || 
+                                         ACHIEVEMENTS[achievement.achievementType?.toUpperCase()];
+                  
+                  if (!achievementInfo) return null;
+
+                  return (
+                    <div 
+                      key={index}
+                      className="bg-white rounded-xl p-4 border-2 border-purple-100 hover:border-purple-300 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-2xl">{achievementInfo.icon}</span>
+                            <h5 className="text-lg font-bold text-gray-800">
+                              {achievementInfo.name}
+                            </h5>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-2">
+                            {achievementInfo.description}
+                          </p>
+                          {achievement.expires_at && (
+                            <p className="text-xs text-gray-500">
+                              ⏰ ينتهي: {new Date(achievement.expires_at).toLocaleDateString('ar-IQ', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* رسالة إذا لم يكن لديه إنجازات */}
+            {(!userStats.activeAchievements || userStats.activeAchievements.length === 0) && (
+              <div className="text-center py-4 bg-purple-50 rounded-xl">
+                <p className="text-purple-700">
+                  <span className="text-2xl mb-2 block">🎯</span>
+                  ادعُ للآخرين لتحصل على الإنجازات والنجوم!
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* الدعاء الجماعي */}
-        {collectivePrayer && collectivePrayer.is_active && (
-          <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white rounded-2xl p-6 mb-6 shadow-xl">
-            <h2 className="text-3xl font-bold mb-4 text-center">
-              🤲 الدعاء الجماعي
-            </h2>
-            <p className="text-2xl leading-relaxed text-center mb-4">
-              {collectivePrayer.prayer_text}
-            </p>
-            <button 
-              onClick={() => prayForRequest(collectivePrayer.id)}
-              className="w-full bg-white text-purple-700 py-4 rounded-xl font-bold text-2xl hover:bg-purple-50 transition-all"
-            >
-              آمين 🤲
-            </button>
-            <p className="text-center mt-3 text-purple-200 text-lg">
-              {collectivePrayer.prayer_count} شخص دعا
-            </p>
+        {/* ⭐ مؤشر الدعاء المضاعف */}
+        {allowedPrayers === 2 && (
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-2xl p-4 border-2 border-purple-300 shadow-lg mb-6">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">⭐⭐</div>
+              <div className="flex-1">
+                <p className="font-bold text-purple-900 mb-1">الدعاء المضاعف نشط!</p>
+                <p className="text-purple-700 text-sm">يمكنك الدعاء {allowedPrayers} مرات اليوم</p>
+                {userStats && (
+                  <p className="text-purple-600 text-xs mt-1">
+                    ✨ متبقي: {allowedPrayers - (userStats.prayers_today || 0)} دعوات
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -839,8 +1350,7 @@ export default function DuaPlatform() {
               onClick={() => {
                 setSelectedPrayerType('personal');
                 setShowPrayerForm(true);
-                setPrayerForm({ ...prayerForm, type: 'personal' });
-                setSelectedVerse(quranVerses.personal);
+                // ✅ FIXED: مسح الحقول عند تغيير النوع
               }}
               className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
             >
@@ -852,8 +1362,7 @@ export default function DuaPlatform() {
               onClick={() => {
                 setSelectedPrayerType('friend');
                 setShowPrayerForm(true);
-                setPrayerForm({ ...prayerForm, type: 'friend' });
-                setSelectedVerse(quranVerses.friend);
+                // ✅ FIXED: مسح الحقول عند تغيير النوع
               }}
               className="bg-gradient-to-br from-blue-600 to-blue-700 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all"
             >
@@ -867,8 +1376,7 @@ export default function DuaPlatform() {
               onClick={() => {
                 setSelectedPrayerType('deceased');
                 setShowPrayerForm(true);
-                setPrayerForm({ ...prayerForm, type: 'deceased' });
-                setSelectedVerse(quranVerses.deceased);
+                // ✅ FIXED: مسح الحقول عند تغيير النوع
               }}
               className="bg-gradient-to-br from-stone-600 to-stone-700 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-stone-700 hover:to-stone-800 transition-all"
             >
@@ -880,8 +1388,7 @@ export default function DuaPlatform() {
               onClick={() => {
                 setSelectedPrayerType('sick');
                 setShowPrayerForm(true);
-                setPrayerForm({ ...prayerForm, type: 'sick' });
-                setSelectedVerse(quranVerses.sick);
+                // ✅ FIXED: مسح الحقول عند تغيير النوع
               }}
               className="bg-gradient-to-br from-red-600 to-red-700 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-red-700 hover:to-red-800 transition-all"
             >
@@ -890,129 +1397,111 @@ export default function DuaPlatform() {
             </button>
           </div>
 
-          {/* نموذج طلب الدعاء */}
-          {showPrayerForm && (
-            <div className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4" onClick={() => setShowPrayerForm(false)}>
-              <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                {/* الآية الخاصة بنوع الدعاء */}
-                {selectedVerse && (
-                  <div className="bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-xl p-4 mb-6 text-center">
-                    <p className="text-xl leading-relaxed mb-1">
-                      {selectedVerse.text}
-                    </p>
-                    <p className="text-sm text-emerald-100">
-                      {selectedVerse.subtitle}
-                    </p>
-                  </div>
-                )}
 
-                <h3 className="text-3xl font-bold text-stone-800 mb-6 text-center">
-                  {prayerForm.type === 'personal' && '🤲 دعاء شخصي'}
-                  {prayerForm.type === 'friend' && '💙 دعاء لصديق'}
-                  {prayerForm.type === 'deceased' && '🕊️ دعاء لمتوفى'}
-                  {prayerForm.type === 'sick' && '💊 دعاء لمريض'}
-                </h3>
+{/* الدعاء الجماعي الموقوت */}
+{platformSettings.collectivePrayer?.isActive && platformSettings.collectivePrayer?.id && (
+  <CollectivePrayerCard
+    prayer={{
+      ...platformSettings.collectivePrayer,
+      prayer_text: platformSettings.collectivePrayer.verseText || platformSettings.collectivePrayer.customPrayer,
+      verse_reference: platformSettings.collectivePrayer.verseReference
+    }}
+    onParticipate={async (prayerId) => {
+      try {
+        const fingerprint = generateFingerprint();
+        const response = await fetch('/api/collective-prayer/pray', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            fingerprint: fingerprint,
+            prayerId: prayerId
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setToastMessage({
+            message: data.message || '🤲 تم تسجيل مشاركتك!',
+            type: 'success'
+          });
+          // تحديث فوري
+          await loadPlatformSettings();
+        } else {
+          const errorData = await response.json();
+          setToastMessage({
+            message: errorData.error || 'حدث خطأ',
+            type: 'error'
+          });
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        setToastMessage({
+          message: 'حدث خطأ في الاتصال',
+          type: 'error'
+        });
+      }
+    }}
+  />
+)}
 
-                <div className="space-y-4">
-                  {/* الاسم */}
-                  <div>
-                    <label className="block text-stone-700 font-semibold mb-2 text-xl">
-                      {prayerForm.type === 'personal' ? 'اسمك' : 'اسم الشخص'}
-                      {prayerForm.type === 'sick' && ' (اختياري - للخصوصية)'}
-                    </label>
-                    <input
-                      type="text"
-                      value={prayerForm.name}
-                      onChange={(e) => setPrayerForm({ ...prayerForm, name: e.target.value })}
-                      className="w-full px-4 py-4 border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:outline-none text-xl"
-                      placeholder={prayerForm.type === 'sick' ? 'يمكنك تركه فارغاً...' : 'أدخل الاسم...'}
-                      required={prayerForm.type !== 'sick'}
-                    />
-                  </div>
 
-                  {/* اسم الأم أو الأب */}
-                  {prayerForm.type !== 'sick' && (
-                    <div>
-                      <label className="block text-stone-700 font-semibold mb-2 text-xl">
-                        اسم الأم أو الأب (اختياري)
-                      </label>
-                      <div className="flex gap-2 mb-2">
-                        <button
-                          type="button"
-                          onClick={() => setPrayerForm({ ...prayerForm, isMotherName: true })}
-                          className={`flex-1 py-3 rounded-lg font-semibold text-lg ${
-                            prayerForm.isMotherName ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
-                          }`}
-                        >
-                          اسم الأم
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPrayerForm({ ...prayerForm, isMotherName: false })}
-                          className={`flex-1 py-3 rounded-lg font-semibold text-lg ${
-                            !prayerForm.isMotherName ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
-                          }`}
-                        >
-                          اسم الأب
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={prayerForm.motherOrFatherName}
-                        onChange={(e) => setPrayerForm({ ...prayerForm, motherOrFatherName: e.target.value })}
-                        className="w-full px-4 py-4 border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:outline-none text-xl"
-                        placeholder={prayerForm.isMotherName ? "اسم الأم..." : "اسم الأب..."}
-                      />
-                      <p className="text-sm text-emerald-700 mt-1 font-semibold">
-                        💡 إدخال اسم الوالد يمنحك فرصة الظهور في "الأكثر تفاعلاً"
-                      </p>
-                    </div>
-                  )}
+{/* نموذج طلب الدعاء - PrayerModal */}
+          <PrayerModal
+            isOpen={showPrayerForm}
+            onClose={() => setShowPrayerForm(false)}
+            type={selectedPrayerType}
+            onSubmit={async (data) => {
+              try {
+                // تطبيع نوع الدعاء للتوافق مع API
+                const normalizeType = (type) => {
+                  return ['general', 'collective'].includes(type) ? 'family' : type;
+                };
 
-                  {/* الغرض */}
-                  <div>
-                    <label className="block text-stone-700 font-semibold mb-2 text-xl">
-                      الغرض من الدعاء
-                    </label>
-                    <select
-                      value={prayerForm.purpose}
-                      onChange={(e) => setPrayerForm({ ...prayerForm, purpose: e.target.value })}
-                      className="w-full px-4 py-4 border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:outline-none text-xl bg-white"
-                    >
-                      <option value="">اختر الغرض...</option>
-                      {(prayerForm.type === 'deceased' 
-                        ? prayerPurposes.deceased 
-                        : prayerForm.type === 'sick'
-                        ? prayerPurposes.sick
-                        : prayerPurposes.general
-                      ).map((purpose, index) => (
-                        <option key={index} value={purpose}>{purpose}</option>
-                      ))}
-                    </select>
-                  </div>
+                // إنشاء البيانات المُرسلة
+                const bodyData = {
+                  prayer_type: normalizeType(data.type),
+                  name: data.name || (data.type === 'sick' ? 'مريض' : ''),
+                  parent_name: data.parentName || data.motherName || data.fatherName || null,
+                  purpose: data.purpose || data.intention || '',
+                  fingerprint: generateFingerprint(),
+                  custom_verse: data.customVerse || null  // ✅ FIX: إضافة الآية المخصصة
+                };
 
-                  {/* الأزرار */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={submitPrayerRequest}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-4 rounded-xl font-bold text-2xl shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
-                    >
-                      ✓ إرسال
-                    </button>
-                    <button
-                      onClick={() => setShowPrayerForm(false)}
-                      className="px-6 bg-stone-300 text-stone-700 py-4 rounded-xl font-semibold text-xl hover:bg-stone-400 transition-all"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+                const response = await fetch('/api/prayer-request', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-device-fingerprint': generateFingerprint()
+                  },
+                  body: JSON.stringify(bodyData)
+                });
+
+                if (response.ok) {
+                  setToastMessage({
+                    message: '✅ تم إرسال طلبك بنجاح!\nالمؤمنون يدعون لك الآن',
+                    type: 'success'
+                  });
+                  setShowPrayerForm(false);
+                  loadData();
+                } else {
+                  const errorData = await response.json();
+                  setToastMessage({
+                    message: errorData.error || 'حدث خطأ، حاول مرة أخرى',
+                    type: 'error'
+                  });
+                }
+              } catch (error) {
+                console.error('Error:', error);
+                setToastMessage({
+                  message: 'حدث خطأ في الاتصال',
+                  type: 'error'
+                });
+              }
+            }}
+          />
         </div>
-
-        {/* طلبات الدعاء */}
+        
+{/* طلبات الدعاء */}
         {prayerRequests.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -1020,70 +1509,54 @@ export default function DuaPlatform() {
                 من يحتاج دعاءك الآن
               </h2>
               <span className="bg-emerald-600 text-white px-4 py-2 rounded-full font-bold text-xl">
-                {prayerRequests.length}
+                {prayerRequests.filter(r => !r.hasPrayed).length}
               </span>
             </div>
             <p className="text-stone-600 text-xl mb-6 text-center">
               "فَاذْكُرُونِي أَذْكُرْكُمْ"
             </p>
 
-            <div className="space-y-4">
-              {prayerRequests.slice(0, 5).map((request) => (
-                <div key={request.id} className="bg-white rounded-xl p-6 shadow-md border-2 border-stone-200">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      {request.type === 'sick' ? (
-                        <p className="text-stone-800 text-2xl font-semibold">
-                          💊 مريض يطلب دعاءكم
-                        </p>
-                      ) : (
-                        <p className="text-stone-800 text-2xl font-semibold">
-                          {request.name}
-                          {request.type === 'deceased' && ' 🕊️'}
-                          {request.type === 'sick' && ' 💊'}
-                        </p>
-                      )}
-                      <p className="text-stone-600 text-lg mt-1">
-                        {request.purpose}
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-emerald-700 font-bold text-xl">
-                        {request.prayer_count} دعاء
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={() => prayForRequest(request.id)}
-                    className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-4 rounded-xl font-bold text-2xl hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-lg"
-                  >
-                    🤲 خذ لحظة وادعُ
-                  </button>
-                </div>
-              ))}
-            </div>
+<div className="space-y-4">
+  {prayerRequests.slice(0, 5).map((request) => (
+    <PrayerCard
+      key={request.id}
+      request={{
+        ...request,
+        displayName: request.name,
+        timestamp: request.created_at,
+        prayerCount: request.prayer_count,
+        motherName: request.parent_name,
+        purpose: request.purpose,
+        quranic_verse: request.quranic_verse  // ✅ تم التصحيح: quranicVerse → quranic_verse
+      }}
+      onPray={prayForRequest}
+    />
+  ))}
+</div>
 
             {prayerRequests.length > 5 && (
-              <button className="w-full mt-4 bg-stone-200 text-stone-800 py-4 rounded-xl font-bold text-2xl hover:bg-stone-300 transition-all">
+              <button 
+                onClick={() => setCurrentPage('prayer-requests')}
+                className="w-full mt-4 bg-stone-200 text-stone-800 py-4 rounded-xl font-bold text-2xl hover:bg-stone-300 transition-all"
+              >
                 عرض المزيد ({prayerRequests.length - 5})
               </button>
             )}
           </div>
         )}
 
-        {/* التوعية */}
-        {awareness && awareness.is_active && (
+{/* التوعية القابلة للتحكم */}
+        {platformSettings.awareness?.isActive && (
           <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 mb-8 shadow-md">
             <h2 className="text-3xl font-bold text-amber-900 mb-4 text-center">
               💡 توعية
             </h2>
             <div className="text-amber-800 text-xl leading-relaxed whitespace-pre-line">
-              {awareness.content}
+              {platformSettings.awareness.content}
             </div>
-            {awareness.links && Array.isArray(awareness.links) && awareness.links.length > 0 && (
+            {platformSettings.awareness.links && Array.isArray(platformSettings.awareness.links) && platformSettings.awareness.links.length > 0 && (
               <div className="mt-4 space-y-2">
-                {awareness.links.map((link, index) => {
+                {platformSettings.awareness.links.map((link, index) => {
                   if (!link || !link.url || !link.title) return null;
                   return (
                     <a
@@ -1102,7 +1575,21 @@ export default function DuaPlatform() {
           </div>
         )}
 
-        {/* زر المشاركة */}
+        {/* ✅ التعديل 6: الأكثر تفاعلاً - في الأسفل قبل Footer */}
+        <div className="mb-8">
+          <div className="text-center mb-6">
+            <h2 className="text-3xl font-bold text-stone-800 mb-2">
+              🏅 الأكثر تفاعلاً
+            </h2>
+            <p className="text-stone-600 text-lg">
+              المستخدمون الأكثر تفاعلاً في المنصة
+            </p>
+          </div>
+          <TodayActiveUsers limit={20} showTitle={false} />
+        </div>
+
+      
+  {/* زر المشاركة */}
         <button 
           onClick={() => {
             if (navigator.share) {

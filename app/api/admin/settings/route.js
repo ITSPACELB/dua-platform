@@ -5,103 +5,194 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // ============================================================================
-// 🔐 التحقق من صلاحيات المسؤول
+// 🔐 التحقق من المسؤول
 // ============================================================================
-async function verifyAdmin(request) {
+function verifyAdmin(request) {
+  try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return null;
+      return { valid: false, error: 'غير مصرح' };
     }
-    
+
     const token = authHeader.substring(7);
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        const adminCheck = await query(
-            'SELECT role FROM admin_users WHERE user_id = $1',
-            [decoded.userId]
-        );
-        
-        if (adminCheck.rows.length === 0) {
-            return null;
-        }
-        
-        return { ...decoded, role: adminCheck.rows[0].role };
-    } catch (error) {
-        return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    if (decoded.role !== 'admin' && decoded.role !== 'super_admin') {
+      return { valid: false, error: 'غير مصرح' };
     }
+
+    return { valid: true, decoded };
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return { valid: false, error: 'Token غير صالح' };
+  }
 }
 
 // ============================================================================
-// 📥 GET - جلب جميع الإعدادات
+// 📥 GET - جلب الإعدادات
 // ============================================================================
 export async function GET(request) {
-    try {
-        const admin = await verifyAdmin(request);
-        if (!admin) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
-        }
+  const auth = verifyAdmin(request);
+  if (!auth.valid) {
+    return NextResponse.json({ error: auth.error }, { status: 403 });
+  }
 
-        const settingsResult = await query(
-            'SELECT key, value, updated_at FROM platform_settings ORDER BY key'
-        );
+  try {
+    const { searchParams } = new URL(request.url);
+    const key = searchParams.get('key');
 
-        const settings = {};
-        settingsResult.rows.forEach(row => {
-            settings[row.key] = {
-                value: row.value,
-                updatedAt: row.updated_at
-            };
-        });
+    if (key) {
+      // جلب إعداد محدد
+      const result = await query(
+        'SELECT * FROM platform_settings WHERE key = $1',
+        [key]
+      );
+      
+      if (result.rows.length === 0) {
+        return NextResponse.json({ error: 'الإعداد غير موجود' }, { status: 404 });
+      }
 
-        return NextResponse.json({
-            success: true,
-            settings
-        });
-
-    } catch (error) {
-        console.error('Admin get settings error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء جلب الإعدادات' },
-            { status: 500 }
-        );
+      return NextResponse.json({
+        success: true,
+        setting: result.rows[0]
+      });
+    } else {
+      // جلب كل الإعدادات
+      const result = await query('SELECT * FROM platform_settings ORDER BY key');
+      
+      return NextResponse.json({
+        success: true,
+        settings: result.rows
+      });
     }
+  } catch (error) {
+    console.error('GET settings error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في جلب الإعدادات' },
+      { status: 500 }
+    );
+  }
 }
 
 // ============================================================================
-// 📤 PUT - تحديث إعداد
+// 📤 POST - إنشاء أو تحديث إعداد
+// ============================================================================
+export async function POST(request) {
+  const auth = verifyAdmin(request);
+  if (!auth.valid) {
+    return NextResponse.json({ error: auth.error }, { status: 403 });
+  }
+
+  try {
+    const { key, value } = await request.json();
+
+    if (!key || !value) {
+      return NextResponse.json(
+        { error: 'المفتاح والقيمة مطلوبان' },
+        { status: 400 }
+      );
+    }
+
+    const result = await query(
+      `INSERT INTO platform_settings (key, value, updated_by) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (key) 
+       DO UPDATE SET value = $2, updated_at = NOW(), updated_by = $3
+       RETURNING *`,
+      [key, JSON.stringify(value), auth.decoded.adminId]
+    );
+
+    return NextResponse.json({
+      success: true,
+      setting: result.rows[0]
+    });
+  } catch (error) {
+    console.error('POST settings error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في حفظ الإعداد' },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================================================
+// 🔄 PUT - تحديث إعداد
 // ============================================================================
 export async function PUT(request) {
-    try {
-        const admin = await verifyAdmin(request);
-        if (!admin || admin.role !== 'super_admin') {
-            return NextResponse.json({ error: 'غير مصرح - صلاحيات Super Admin مطلوبة' }, { status: 403 });
-        }
+  const auth = verifyAdmin(request);
+  if (!auth.valid) {
+    return NextResponse.json({ error: auth.error }, { status: 403 });
+  }
 
-        const { key, value } = await request.json();
+  try {
+    const { key, value } = await request.json();
 
-        if (!key || !value) {
-            return NextResponse.json({ error: 'المفتاح والقيمة مطلوبان' }, { status: 400 });
-        }
-
-        await query(
-            `INSERT INTO platform_settings (key, value, updated_at)
-             VALUES ($1, $2, NOW())
-             ON CONFLICT (key) 
-             DO UPDATE SET value = $2, updated_at = NOW()`,
-            [key, value]
-        );
-
-        return NextResponse.json({
-            success: true,
-            message: 'تم تحديث الإعداد بنجاح'
-        });
-
-    } catch (error) {
-        console.error('Admin update setting error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء تحديث الإعداد' },
-            { status: 500 }
-        );
+    if (!key || !value) {
+      return NextResponse.json(
+        { error: 'المفتاح والقيمة مطلوبان' },
+        { status: 400 }
+      );
     }
+
+    const result = await query(
+      `UPDATE platform_settings 
+       SET value = $1, updated_at = NOW(), updated_by = $2
+       WHERE key = $3
+       RETURNING *`,
+      [JSON.stringify(value), auth.decoded.adminId, key]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'الإعداد غير موجود' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      setting: result.rows[0]
+    });
+  } catch (error) {
+    console.error('PUT settings error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في تحديث الإعداد' },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================================================
+// 🗑️ DELETE - حذف إعداد
+// ============================================================================
+export async function DELETE(request) {
+  const auth = verifyAdmin(request);
+  if (!auth.valid) {
+    return NextResponse.json({ error: auth.error }, { status: 403 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const key = searchParams.get('key');
+
+    if (!key) {
+      return NextResponse.json(
+        { error: 'المفتاح مطلوب' },
+        { status: 400 }
+      );
+    }
+
+    await query('DELETE FROM platform_settings WHERE key = $1', [key]);
+
+    return NextResponse.json({
+      success: true,
+      message: 'تم حذف الإعداد بنجاح'
+    });
+  } catch (error) {
+    console.error('DELETE settings error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في حذف الإعداد' },
+      { status: 500 }
+    );
+  }
 }

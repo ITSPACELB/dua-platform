@@ -1,46 +1,91 @@
 // ════════════════════════════════════════════════════════════
-// 📱 القائمة الجانبية المحدثة (Header + Menu)
+// 📱 القائمة الجانبية المحدثة - المرحلة 9
 // ════════════════════════════════════════════════════════════
 // التحديثات:
-// ❌ حذف أيقونة التعديل (Edit2)
-// ✅ إضافة "معلوماتك الشخصية" في القائمة
+// ✅ إضافة "المكتبة" في القائمة
+// ✅ إضافة "لوحة الإدارة" (للأدمن فقط)
+// ✅ دمج القوائم القديمة والجديدة
 // ════════════════════════════════════════════════════════════
 
 import { useState } from 'react';
-import { Menu, Home, User, TrendingUp, Award, Heart, HelpCircle, LogOut } from 'lucide-react';
+import { Menu, Home, User, TrendingUp, Award, BookOpen, Heart, HelpCircle, LogOut, Shield } from 'lucide-react';
 
-export default function MenuBar({ user, currentPage, onNavigate, onLogout }) {
+export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsVisibility }) {
   const [showMenu, setShowMenu] = useState(false);
+  
+  // التحقق من صلاحية الأدمن
+  const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') : null;
+
+  // القيم الافتراضية للـ tabsVisibility
+  const tabs = tabsVisibility || {
+    home: true,
+    prayers: true,
+    profile: true,
+    achievements: true,
+    notifications: true
+  };
 
   // ═══════════════════════════════════════════════════════════
   // 📋 عناصر القائمة المحدثة
   // ═══════════════════════════════════════════════════════════
   const menuItems = [
-    { 
+    // الرئيسية (مشروطة بـ tabsVisibility.home)
+    ...(tabs.home ? [{ 
       id: 'home', 
       label: '🏠 الرئيسية', 
       icon: Home 
-    },
-    { 
+    }] : []),
+    
+    // الملف الشخصي (مشروط بـ tabsVisibility.profile)
+    ...(tabs.profile ? [{ 
       id: 'profile', 
       label: '👤 معلوماتك الشخصية', 
       icon: User 
-    },
+    }] : []),
+    
+    // الإحصائيات (دائماً مرئي)
     { 
       id: 'stats', 
       label: '📊 إحصائياتك', 
       icon: TrendingUp 
     },
-    { 
+    
+    // الإنجازات (مشروط بـ tabsVisibility.achievements)
+    ...(tabs.achievements ? [{ 
       id: 'achievements', 
       label: '🏆 إنجازاتك', 
       icon: Award 
+    }] : []),
+    
+    // طلبات الدعاء (دائماً مرئي)
+    { 
+      id: 'prayer-requests', 
+      label: '🤲 طلبات الدعاء', 
+      icon: Heart 
     },
+    
+    // لوحة الإدارة (للأدمن فقط - دائماً مرئي للأدمن)
+    ...(userRole === 'admin' || userRole === 'super_admin' ? [{
+      id: 'admin',
+      label: '⚙️ لوحة الإدارة',
+      icon: Shield
+    }] : []),
+    
+    // المكتبة (دائماً مرئي)
+    { 
+      id: 'library', 
+      label: '📚 المكتبة', 
+      icon: BookOpen 
+    },
+    
+    // من نحن (دائماً مرئي)
     { 
       id: 'about', 
       label: '📄 من نحن', 
       icon: Heart 
     },
+    
+    // الأسئلة الشائعة (دائماً مرئي)
     { 
       id: 'faq', 
       label: '❓ الأسئلة الشائعة', 
@@ -94,7 +139,7 @@ export default function MenuBar({ user, currentPage, onNavigate, onLogout }) {
               </p>
             </div>
 
-            {/* مساحة فارغة للتوازن (بدلاً من زر التعديل) */}
+            {/* مساحة فارغة للتوازن */}
             <div className="w-11" />
           </div>
         </div>

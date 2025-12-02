@@ -8,161 +8,234 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 // 🔐 التحقق من صلاحيات المسؤول
 // ============================================================================
 async function verifyAdmin(request) {
+  try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return null;
+      return null;
     }
-    
+
     const token = authHeader.substring(7);
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        const adminCheck = await query(
-            'SELECT role FROM admin_users WHERE user_id = $1',
-            [decoded.userId]
-        );
-        
-        if (adminCheck.rows.length === 0) {
-            return null;
-        }
-        
-        return { ...decoded, role: adminCheck.rows[0].role };
-    } catch (error) {
-        return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // ✅ استخدم adminId بدلاً من userId
+    const adminCheck = await query(
+      'SELECT role FROM admin_users WHERE id = $1',
+      [decoded.adminId]
+    );
+
+    if (adminCheck.rows.length === 0) {
+      return null;
     }
+
+    return { ...decoded, role: adminCheck.rows[0].role };
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    return null;
+  }
 }
 
 // ============================================================================
 // 📥 GET - جلب طلبات الدعاء
 // ============================================================================
 export async function GET(request) {
-    try {
-        const admin = await verifyAdmin(request);
-        if (!admin) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
-        }
-
-        const { searchParams } = new URL(request.url);
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '50');
-        const status = searchParams.get('status') || 'all'; // all, active, answered, expired
-        const type = searchParams.get('type') || 'all'; // all, general, deceased, sick
-
-        const offset = (page - 1) * limit;
-
-        // بناء WHERE clause
-        let whereClause = '1=1';
-        
-        if (status !== 'all') {
-            whereClause += ` AND pr.status = '${status}'`;
-        }
-        
-        if (type !== 'all') {
-            whereClause += ` AND pr.type = '${type}'`;
-        }
-
-        // جلب الطلبات
-        const requestsResult = await query(
-            `SELECT 
-                pr.id,
-                pr.user_id,
-                pr.type,
-                pr.status,
-                pr.deceased_name,
-                pr.deceased_mother_name,
-                pr.relation,
-                pr.is_name_private,
-                pr.sick_name,
-                pr.sick_mother_name,
-                pr.created_at,
-                pr.expires_at,
-                pr.answered_at,
-                pr.total_prayers_received,
-                u.full_name,
-                u.mother_name,
-                u.nickname
-             FROM prayer_requests pr
-             JOIN users u ON pr.user_id = u.id
-             WHERE ${whereClause}
-             ORDER BY pr.created_at DESC
-             LIMIT $1 OFFSET $2`,
-            [limit, offset]
-        );
-
-        // عد الإجمالي
-        const countResult = await query(
-            `SELECT COUNT(*) as count FROM prayer_requests pr WHERE ${whereClause}`
-        );
-
-        const totalRequests = parseInt(countResult.rows[0].count);
-        const totalPages = Math.ceil(totalRequests / limit);
-
-        const requests = requestsResult.rows.map(row => ({
-            id: row.id,
-            requesterId: row.user_id,
-            requesterName: row.nickname || row.full_name,
-            type: row.type,
-            status: row.status,
-            deceasedName: row.deceased_name,
-            deceasedMotherName: row.deceased_mother_name,
-            relation: row.relation,
-            isNamePrivate: row.is_name_private,
-            sickPersonName: row.sick_name,
-            sickPersonMotherName: row.sick_mother_name,
-            createdAt: row.created_at,
-            expiresAt: row.expires_at,
-            answeredAt: row.answered_at,
-            totalPrayers: row.total_prayers_received
-        }));
-
-        return NextResponse.json({
-            success: true,
-            requests,
-            pagination: {
-                page,
-                limit,
-                totalRequests,
-                totalPages
-            }
-        });
-
-    } catch (error) {
-        console.error('Admin get requests error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء جلب الطلبات' },
-            { status: 500 }
-        );
+  try {
+    const admin = await verifyAdmin(request);
+    
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const status = searchParams.get('status') || 'all';
+    const type = searchParams.get('type') || 'all';
+    const limit = 20;
+    const offset = (page - 1) * limit;
+
+    // بناء الاستعلام
+    let conditions = [];
+    let params = [];
+    let paramIndex = 1;
+
+    if (status !== 'all') {
+      conditions.push(`pr.status = $${paramIndex}`);
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (type !== 'all') {
+      conditions.push(`pr.type = $${paramIndex}`);
+      params.push(type);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // جلب الطلبات مع معلومات المستخدم
+    const requestsQuery = `
+      SELECT 
+        pr.id,
+        pr.user_id,
+        pr.type,
+        pr.name,
+        pr.mother_or_father_name,
+        pr.purpose,
+        pr.custom_verse,
+        pr.status,
+        pr.prayer_count,
+        pr.is_second_request,
+        pr.created_at,
+        pr.expires_at,
+        u.full_name as user_full_name,
+        u.phone_number as user_phone,
+        u.country as user_country,
+        u.is_anonymous as user_is_anonymous
+      FROM prayer_requests pr
+      LEFT JOIN users u ON pr.user_id = u.id
+      ${whereClause}
+      ORDER BY pr.created_at DESC 
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    params.push(limit, offset);
+
+    const result = await query(requestsQuery, params);
+
+    // عد الطلبات
+    const countQuery = `SELECT COUNT(*) FROM prayer_requests pr ${whereClause}`;
+    const countResult = await query(countQuery, params.slice(0, -2));
+    const total = parseInt(countResult.rows[0].count);
+
+    return NextResponse.json({
+      success: true,
+      requests: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('GET requests error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في جلب الطلبات', details: error.message },
+      { status: 500 }
+    );
+  }
 }
 
 // ============================================================================
-// 🗑️ DELETE - حذف طلب (Super Admin فقط)
+// 🔄 PATCH - تحديث حالة طلب
+// ============================================================================
+export async function PATCH(request) {
+  try {
+    const admin = await verifyAdmin(request);
+    
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
+    }
+
+    const { requestId, status } = await request.json();
+
+    if (!requestId || !status) {
+      return NextResponse.json(
+        { error: 'معرف الطلب والحالة مطلوبان' },
+        { status: 400 }
+      );
+    }
+
+    // التحقق من الحالة المسموح بها
+    const allowedStatuses = ['active', 'rejected', 'completed', 'expired'];
+    if (!allowedStatuses.includes(status)) {
+      return NextResponse.json(
+        { error: 'حالة غير صالحة' },
+        { status: 400 }
+      );
+    }
+
+    const result = await query(
+      'UPDATE prayer_requests SET status = $1 WHERE id = $2 RETURNING id, name, status',
+      [status, requestId]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'طلب الدعاء غير موجود' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'تم تحديث الحالة بنجاح',
+      request: result.rows[0]
+    });
+  } catch (error) {
+    console.error('PATCH request error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في تحديث الطلب', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================================================
+// 🗑️ DELETE - حذف طلب دعاء
 // ============================================================================
 export async function DELETE(request) {
-    try {
-        const admin = await verifyAdmin(request);
-        if (!admin || admin.role !== 'super_admin') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
-        }
-
-        const { requestId } = await request.json();
-
-        if (!requestId) {
-            return NextResponse.json({ error: 'معرّف الطلب مطلوب' }, { status: 400 });
-        }
-
-        await query('DELETE FROM prayer_requests WHERE id = $1', [requestId]);
-
-        return NextResponse.json({
-            success: true,
-            message: 'تم حذف الطلب بنجاح'
-        });
-
-    } catch (error) {
-        console.error('Admin delete request error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء حذف الطلب' },
-            { status: 500 }
-        );
+  try {
+    const admin = await verifyAdmin(request);
+    
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const requestId = searchParams.get('id');
+
+    if (!requestId) {
+      return NextResponse.json(
+        { error: 'معرف الطلب مطلوب' },
+        { status: 400 }
+      );
+    }
+
+    await query('BEGIN');
+    
+    try {
+      // حذف الصلوات المرتبطة بالطلب
+      await query('DELETE FROM prayers WHERE request_id = $1', [requestId]);
+      
+      // حذف طلب الدعاء
+      const deleteResult = await query(
+        'DELETE FROM prayer_requests WHERE id = $1 RETURNING name',
+        [requestId]
+      );
+
+      if (deleteResult.rows.length === 0) {
+        await query('ROLLBACK');
+        return NextResponse.json(
+          { error: 'طلب الدعاء غير موجود' },
+          { status: 404 }
+        );
+      }
+
+      await query('COMMIT');
+
+      return NextResponse.json({
+        success: true,
+        message: 'تم حذف طلب الدعاء بنجاح',
+        deletedRequest: deleteResult.rows[0].name
+      });
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+  } catch (error) {
+    console.error('DELETE request error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في حذف الطلب', details: error.message },
+      { status: 500 }
+    );
+  }
 }
