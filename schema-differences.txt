@@ -1,0 +1,5209 @@
+--- production-schema.sql	2025-12-04 21:31:03.277920502 +0100
++++ local-complete-schema.sql	2025-12-04 21:30:52.938014017 +0100
+@@ -1,65 +1,99 @@
+---
+--- PostgreSQL database dump
+---
+-
+-\restrict dXSDLublVGvy9gUbTm75QBU1CLU5E1HIZbwriSZfulEr82pnJjRbIcPtwz2J2wU
+-
+--- Dumped from database version 14.20 (Ubuntu 14.20-0ubuntu0.22.04.1)
+--- Dumped by pg_dump version 14.20 (Ubuntu 14.20-0ubuntu0.22.04.1)
+-
+-SET statement_timeout = 0;
+-SET lock_timeout = 0;
+-SET idle_in_transaction_session_timeout = 0;
+-SET client_encoding = 'UTF8';
+-SET standard_conforming_strings = on;
+-SELECT pg_catalog.set_config('search_path', '', false);
+-SET check_function_bodies = false;
+-SET xmloption = content;
+-SET client_min_messages = warning;
+-SET row_security = off;
+-
+---
+--- Name: calculate_interaction_rate(uuid); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.calculate_interaction_rate(usr_id uuid) RETURNS numeric
+-    LANGUAGE plpgsql
++﻿--
++-- PostgreSQL database dump
++--
++
++\restrict G7fCkwMkFa1iHVGgtLrZPakizZbf5AwplLKbsY7mcVnm5hiI2tDViXPFcOZwAgg
++
++-- Dumped from database version 16.10
++-- Dumped by pg_dump version 16.10
++
++SET statement_timeout = 0;
++SET lock_timeout = 0;
++SET idle_in_transaction_session_timeout = 0;
++SET client_encoding = 'UTF8';
++SET standard_conforming_strings = on;
++SELECT pg_catalog.set_config('search_path', '', false);
++SET check_function_bodies = false;
++SET xmloption = content;
++SET client_min_messages = warning;
++SET row_security = off;
++
++--
++-- Name: public; Type: SCHEMA; Schema: -; Owner: -
++--
++
++-- *not* creating schema, since initdb creates it
++
++
++--
++-- Name: calculate_interaction_rate(uuid); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.calculate_interaction_rate(usr_id uuid) RETURNS numeric
++    LANGUAGE plpgsql
+     AS $$
++
+ DECLARE
++
+     total_available INTEGER;
++
+     total_prayed INTEGER;
++
+     rate DECIMAL;
++
+ BEGIN
++
+     SELECT COUNT(*) INTO total_available
++
+     FROM prayer_requests
++
+     WHERE created_at >= (SELECT created_at FROM users WHERE id = usr_id)
++
+     AND status = 'active';
++
+     
++
+     SELECT COUNT(*) INTO total_prayed
++
+     FROM prayers
++
+     WHERE user_id = usr_id;
++
+     
++
+     IF total_available > 0 THEN
++
+         rate := (total_prayed::DECIMAL / total_available::DECIMAL) * 100;
++
+     ELSE
++
+         rate := 0;
++
+     END IF;
++
+     
++
+     UPDATE user_stats 
++
+     SET interaction_rate = rate, updated_at = NOW()
++
+     WHERE user_id = usr_id;
++
+     
++
+     RETURN rate;
++
+ END;
+-$$;
+-
+-
+---
+--- Name: calculate_user_ranks(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.calculate_user_ranks() RETURNS void
+-    LANGUAGE plpgsql
++
++$$;
++
++
++--
++-- Name: calculate_user_ranks(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.calculate_user_ranks() RETURNS void
++    LANGUAGE plpgsql
+     AS $$
+ BEGIN
+   -- ??????? ?????
+@@ -88,15 +122,15 @@
+   ) ranked
+   WHERE up.user_id = ranked.user_id;
+ END;
+-$$;
+-
+-
+---
+--- Name: check_badge_status(uuid); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.check_badge_status(usr_id uuid) RETURNS TABLE(current_rate numeric, level_name character varying, status character varying, days_in_grace integer, maintain_threshold numeric)
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: check_badge_status(uuid); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.check_badge_status(usr_id uuid) RETURNS TABLE(current_rate numeric, level_name character varying, status character varying, days_in_grace integer, maintain_threshold numeric)
++    LANGUAGE plpgsql
+     AS $$
+ DECLARE
+   rate DECIMAL;
+@@ -146,22 +180,22 @@
+   -- إرجاع النتائج
+   RETURN QUERY SELECT rate, v_level, v_status, days_in_grace, maintain_thresh;
+ END;
+-$$;
+-
+-
+---
+--- Name: FUNCTION check_badge_status(usr_id uuid); Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON FUNCTION public.check_badge_status(usr_id uuid) IS 'دالة شاملة تعيد حالة الشارة الكاملة للمستخدم مع كل التفاصيل';
+-
+-
+---
+--- Name: check_if_notification_sent(uuid, character varying, character varying); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying) RETURNS boolean
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: FUNCTION check_badge_status(usr_id uuid); Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON FUNCTION public.check_badge_status(usr_id uuid) IS 'دالة شاملة تعيد حالة الشارة الكاملة للمستخدم مع كل التفاصيل';
++
++
++--
++-- Name: check_if_notification_sent(uuid, character varying, character varying); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying) RETURNS boolean
++    LANGUAGE plpgsql
+     AS $$
+ DECLARE
+   found_count INT;
+@@ -175,22 +209,22 @@
+     
+   RETURN found_count > 0;
+ END;
+-$$;
+-
+-
+---
+--- Name: FUNCTION check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying); Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON FUNCTION public.check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying) IS 'يتحقق من إرسال نفس الإشعار في آخر 24 ساعة (منع التكرار)';
+-
+-
+---
+--- Name: expire_old_achievements(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.expire_old_achievements() RETURNS integer
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: FUNCTION check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying); Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON FUNCTION public.check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying) IS 'يتحقق من إرسال نفس الإشعار في آخر 24 ساعة (منع التكرار)';
++
++
++--
++-- Name: expire_old_achievements(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.expire_old_achievements() RETURNS integer
++    LANGUAGE plpgsql
+     AS $$
+ 
+ DECLARE
+@@ -217,15 +251,15 @@
+ 
+ END;
+ 
+-$$;
+-
+-
+---
+--- Name: get_system_stats(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.get_system_stats() RETURNS TABLE(total_users bigint, total_prayers_today bigint, total_requests_today bigint, active_users_today bigint, verified_users bigint)
+-    LANGUAGE plpgsql STABLE
++$$;
++
++
++--
++-- Name: get_system_stats(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.get_system_stats() RETURNS TABLE(total_users bigint, total_prayers_today bigint, total_requests_today bigint, active_users_today bigint, verified_users bigint)
++    LANGUAGE plpgsql STABLE
+     AS $$
+ 
+ BEGIN
+@@ -246,30 +280,36 @@
+ 
+ END;
+ 
+-$$;
+-
+-
+---
+--- Name: increment_prayer_count(uuid); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.increment_prayer_count(req_id uuid) RETURNS void
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: increment_prayer_count(uuid); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.increment_prayer_count(req_id uuid) RETURNS void
++    LANGUAGE plpgsql
+     AS $$
++
+ BEGIN
++
+     UPDATE prayer_requests 
++
+     SET prayer_count = prayer_count + 1 
++
+     WHERE id = req_id;
++
+ END;
+-$$;
+-
+-
+---
+--- Name: log_badge_change(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.log_badge_change() RETURNS trigger
+-    LANGUAGE plpgsql
++
++$$;
++
++
++--
++-- Name: log_badge_change(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.log_badge_change() RETURNS trigger
++    LANGUAGE plpgsql
+     AS $$
+ 
+ BEGIN
+@@ -332,15 +372,15 @@
+ 
+ END;
+ 
+-$$;
+-
+-
+---
+--- Name: refresh_active_users(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.refresh_active_users() RETURNS void
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: refresh_active_users(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.refresh_active_users() RETURNS void
++    LANGUAGE plpgsql
+     AS $$
+ 
+ BEGIN
+@@ -349,15 +389,15 @@
+ 
+ END;
+ 
+-$$;
+-
+-
+---
+--- Name: refresh_today_active_users(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.refresh_today_active_users() RETURNS void
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: refresh_today_active_users(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.refresh_today_active_users() RETURNS void
++    LANGUAGE plpgsql
+     AS $$
+ 
+ BEGIN
+@@ -368,15 +408,15 @@
+ 
+ END;
+ 
+-$$;
+-
+-
+---
+--- Name: reset_monthly_cooldowns(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.reset_monthly_cooldowns() RETURNS void
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: reset_monthly_cooldowns(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.reset_monthly_cooldowns() RETURNS void
++    LANGUAGE plpgsql
+     AS $$
+ BEGIN
+   UPDATE user_stats
+@@ -402,15 +442,15 @@
+     'Monthly cooldown reset'
+   );
+ END;
+-$$;
+-
+-
+---
+--- Name: update_badge_statuses(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.update_badge_statuses() RETURNS void
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: update_badge_statuses(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.update_badge_statuses() RETURNS void
++    LANGUAGE plpgsql
+     AS $$
+ BEGIN
+   -- ════════════════════════════════════════════════════════════
+@@ -495,22 +535,22 @@
+   -- تسجيل في الـ log
+   RAISE NOTICE 'تم تحديث حالات الشارات بنجاح في %', NOW();
+ END;
+-$$;
+-
+-
+---
+--- Name: FUNCTION update_badge_statuses(); Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON FUNCTION public.update_badge_statuses() IS 'دالة تلقائية تُشغّل يومياً لتحديث حالات الشارات (السماح، السحب، الاستعادة)';
+-
+-
+---
+--- Name: update_daily_streak(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.update_daily_streak() RETURNS trigger
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: FUNCTION update_badge_statuses(); Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON FUNCTION public.update_badge_statuses() IS 'دالة تلقائية تُشغّل يومياً لتحديث حالات الشارات (السماح، السحب، الاستعادة)';
++
++
++--
++-- Name: update_daily_streak(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.update_daily_streak() RETURNS trigger
++    LANGUAGE plpgsql
+     AS $$
+ BEGIN
+   -- ??? ??? ??? ???? ???????? ????? ???????????
+@@ -534,2256 +574,2527 @@
+   
+   RETURN NEW;
+ END;
+-$$;
+-
+-
+---
+--- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
+-    LANGUAGE plpgsql
++$$;
++
++
++--
++-- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
++    LANGUAGE plpgsql
+     AS $$
++
+ BEGIN
++
+     NEW.updated_at = NOW();
++
++    RETURN NEW;
++
++END;
++
++$$;
++
++
++--
++-- Name: update_user_level(); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.update_user_level() RETURNS trigger
++    LANGUAGE plpgsql
++    AS $$
++
++BEGIN
++
++    IF NEW.phone_number IS NOT NULL AND NEW.full_name IS NOT NULL AND NEW.mother_or_father_name IS NOT NULL THEN
++
++        UPDATE user_stats SET level = 3 WHERE user_id = NEW.id;
++
++    ELSIF NEW.full_name IS NOT NULL AND NEW.mother_or_father_name IS NOT NULL THEN
++
++        UPDATE user_stats SET level = 2 WHERE user_id = NEW.id;
++
++    ELSE
++
++        UPDATE user_stats SET level = 1 WHERE user_id = NEW.id;
++
++    END IF;
++
++    
++
+     RETURN NEW;
++
+ END;
+-$$;
+-
+-
+---
+--- Name: update_user_level(); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.update_user_level() RETURNS trigger
+-    LANGUAGE plpgsql
+-    AS $$
+-BEGIN
+-    -- حساب المستوى وتحديثه في user_stats
+-    IF NEW.phone_number IS NOT NULL AND NEW.full_name IS NOT NULL AND NEW.mother_or_father_name IS NOT NULL THEN
+-        UPDATE user_stats SET level = 3 WHERE user_id = NEW.id;
+-    ELSIF NEW.full_name IS NOT NULL AND NEW.mother_or_father_name IS NOT NULL THEN
+-        UPDATE user_stats SET level = 2 WHERE user_id = NEW.id;
+-    ELSE
+-        UPDATE user_stats SET level = 1 WHERE user_id = NEW.id;
+-    END IF;
+-    
+-    RETURN NEW;
+-END;
+-$$;
+-
+-
+---
+--- Name: update_user_stats(uuid); Type: FUNCTION; Schema: public; Owner: -
+---
+-
+-CREATE FUNCTION public.update_user_stats(usr_id uuid) RETURNS void
+-    LANGUAGE plpgsql
++
++$$;
++
++
++--
++-- Name: update_user_stats(uuid); Type: FUNCTION; Schema: public; Owner: -
++--
++
++CREATE FUNCTION public.update_user_stats(usr_id uuid) RETURNS void
++    LANGUAGE plpgsql
+     AS $$
++
+ DECLARE
++
+     today_start TIMESTAMP := date_trunc('day', NOW());
++
+     week_start TIMESTAMP := date_trunc('week', NOW());
++
+     month_start TIMESTAMP := date_trunc('month', NOW());
++
+     year_start TIMESTAMP := date_trunc('year', NOW());
++
+ BEGIN
++
+     INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year)
++
+     SELECT 
++
+         usr_id,
++
+         COUNT(*),
++
+         COUNT(*) FILTER (WHERE prayed_at >= today_start),
++
+         COUNT(*) FILTER (WHERE prayed_at >= week_start),
++
+         COUNT(*) FILTER (WHERE prayed_at >= month_start),
++
+         COUNT(*) FILTER (WHERE prayed_at >= year_start)
++
+     FROM prayers
++
+     WHERE user_id = usr_id
++
+     ON CONFLICT (user_id) 
++
+     DO UPDATE SET
++
+         total_prayers = EXCLUDED.total_prayers,
++
+         prayers_today = EXCLUDED.prayers_today,
++
+         prayers_week = EXCLUDED.prayers_week,
++
+         prayers_month = EXCLUDED.prayers_month,
++
+         prayers_year = EXCLUDED.prayers_year,
++
+         updated_at = NOW();
++
+ END;
+-$$;
+-
+-
+-SET default_tablespace = '';
+-
+-SET default_table_access_method = heap;
+-
+---
+--- Name: about_us; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.about_us (
+-    id integer NOT NULL,
+-    content text NOT NULL,
+-    links jsonb DEFAULT '[]'::jsonb,
+-    email character varying(255),
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: about_us_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.about_us_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: about_us_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.about_us_id_seq OWNED BY public.about_us.id;
+-
+-
+---
+--- Name: achievement_settings; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.achievement_settings (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    feature_name character varying(50) NOT NULL,
+-    is_automatic boolean DEFAULT true,
+-    is_enabled boolean DEFAULT true,
+-    setting_value jsonb DEFAULT '{}'::jsonb,
+-    updated_by uuid,
+-    created_at timestamp without time zone DEFAULT now(),
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: achievements; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.achievements (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid,
+-    achievement_type text NOT NULL,
+-    stars_earned integer NOT NULL,
+-    achieved_at timestamp without time zone DEFAULT now(),
+-    expires_at timestamp without time zone,
+-    CONSTRAINT achievements_achievement_type_check CHECK ((achievement_type = ANY (ARRAY['name_display'::text, 'double_prayer'::text, 'verse_selection'::text])))
+-);
+-
+-
+---
+--- Name: admin_settings; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.admin_settings (
+-    setting_key character varying(100) NOT NULL,
+-    setting_value text NOT NULL,
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: admin_users; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.admin_users (
+-    id integer NOT NULL,
+-    user_id uuid,
+-    email character varying(255) NOT NULL,
+-    password_hash character varying(255) NOT NULL,
+-    role character varying(50) DEFAULT 'admin'::character varying NOT NULL,
+-    is_active boolean DEFAULT true,
+-    created_at timestamp without time zone DEFAULT now(),
+-    last_login timestamp without time zone,
+-    created_by integer
+-);
+-
+-
+---
+--- Name: admin_users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.admin_users_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: admin_users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.admin_users_id_seq OWNED BY public.admin_users.id;
+-
+-
+---
+--- Name: awareness; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.awareness (
+-    id integer NOT NULL,
+-    content text NOT NULL,
+-    link jsonb DEFAULT '[]'::jsonb,
+-    is_active boolean DEFAULT true,
+-    created_at timestamp without time zone DEFAULT now(),
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: awareness_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.awareness_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: awareness_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.awareness_id_seq OWNED BY public.awareness.id;
+-
+-
+---
+--- Name: badge_audit_log; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.badge_audit_log (
+-    id integer NOT NULL,
+-    user_id uuid,
+-    event_type character varying(50) NOT NULL,
+-    old_status character varying(20),
+-    new_status character varying(20),
+-    old_rate numeric(5,2),
+-    new_rate numeric(5,2),
+-    reason text,
+-    created_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: badge_audit_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.badge_audit_log_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: badge_audit_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.badge_audit_log_id_seq OWNED BY public.badge_audit_log.id;
+-
+-
+---
+--- Name: badge_notifications; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.badge_notifications (
+-    id integer NOT NULL,
+-    user_id uuid,
+-    notification_type character varying(50) NOT NULL,
+-    badge_level character varying(10),
+-    sent_at timestamp without time zone DEFAULT now(),
+-    metadata jsonb DEFAULT '{}'::jsonb
+-);
+-
+-
+---
+--- Name: TABLE badge_notifications; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON TABLE public.badge_notifications IS 'سجل كامل للإشعارات المرسلة - يمنع التكرار';
+-
+-
+---
+--- Name: COLUMN badge_notifications.notification_type; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.badge_notifications.notification_type IS 'نوع الإشعار: gained, warning, grace, lost, restored';
+-
+-
+---
+--- Name: COLUMN badge_notifications.badge_level; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.badge_notifications.badge_level IS 'مستوى الشارة: BLUE, GREEN, GOLD';
+-
+-
+---
+--- Name: COLUMN badge_notifications.metadata; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.badge_notifications.metadata IS 'بيانات إضافية بصيغة JSON (مرن للمستقبل)';
+-
+-
+---
+--- Name: badge_notifications_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.badge_notifications_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: badge_notifications_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.badge_notifications_id_seq OWNED BY public.badge_notifications.id;
+-
+-
+---
+--- Name: banner; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.banner (
+-    id integer NOT NULL,
+-    content text NOT NULL,
+-    link character varying(500),
+-    is_active boolean DEFAULT true,
+-    created_at timestamp without time zone DEFAULT now(),
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: banner_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.banner_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: banner_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.banner_id_seq OWNED BY public.banner.id;
+-
+-
+---
+--- Name: collective_prayer; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.collective_prayer (
+-    id integer NOT NULL,
+-    type character varying(20) NOT NULL,
+-    content text NOT NULL,
+-    timing character varying(20) NOT NULL,
+-    start_date timestamp without time zone,
+-    end_date timestamp without time zone,
+-    is_active boolean DEFAULT true,
+-    created_at timestamp without time zone DEFAULT now(),
+-    updated_at timestamp without time zone DEFAULT now(),
+-    scheduled_datetime timestamp without time zone,
+-    duration_minutes integer DEFAULT 30,
+-    CONSTRAINT collective_prayer_timing_check CHECK (((timing)::text = ANY ((ARRAY['always'::character varying, 'scheduled'::character varying])::text[]))),
+-    CONSTRAINT collective_prayer_type_check CHECK (((type)::text = ANY ((ARRAY['verse'::character varying, 'purpose'::character varying, 'custom'::character varying])::text[])))
+-);
+-
+-
+---
+--- Name: collective_prayer_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.collective_prayer_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: collective_prayer_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.collective_prayer_id_seq OWNED BY public.collective_prayer.id;
+-
+-
+---
+--- Name: collective_prayer_participants; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.collective_prayer_participants (
+-    id integer NOT NULL,
+-    user_id uuid NOT NULL,
+-    prayer_id integer NOT NULL,
+-    created_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: collective_prayer_participants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.collective_prayer_participants_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: collective_prayer_participants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.collective_prayer_participants_id_seq OWNED BY public.collective_prayer_participants.id;
+-
+-
+---
+--- Name: contact_messages; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.contact_messages (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    name text,
+-    email text,
+-    message text NOT NULL,
+-    is_read boolean DEFAULT false,
+-    created_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: daily_stats; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.daily_stats (
+-    id integer NOT NULL,
+-    stat_date date NOT NULL,
+-    total_users integer DEFAULT 0 NOT NULL,
+-    active_users integer DEFAULT 0 NOT NULL,
+-    new_users integer DEFAULT 0 NOT NULL,
+-    total_prayer_requests integer DEFAULT 0 NOT NULL,
+-    total_prayers_given integer DEFAULT 0 NOT NULL,
+-    answered_prayers integer DEFAULT 0 NOT NULL,
+-    blue_badges integer DEFAULT 0 NOT NULL,
+-    green_badges integer DEFAULT 0 NOT NULL,
+-    gold_badges integer DEFAULT 0 NOT NULL,
+-    avg_interaction_rate numeric(5,2),
+-    top_users jsonb,
+-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+-);
+-
+-
+---
+--- Name: daily_stats_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.daily_stats_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: daily_stats_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.daily_stats_id_seq OWNED BY public.daily_stats.id;
+-
+-
+---
+--- Name: fingerprint_settings; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.fingerprint_settings (
+-    id integer NOT NULL,
+-    enabled boolean DEFAULT true,
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: fingerprint_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.fingerprint_settings_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: fingerprint_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.fingerprint_settings_id_seq OWNED BY public.fingerprint_settings.id;
+-
+-
+---
+--- Name: level_ratios; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.level_ratios (
+-    id integer NOT NULL,
+-    level_1 integer NOT NULL,
+-    level_2 integer NOT NULL,
+-    level_3 integer NOT NULL,
+-    updated_at timestamp without time zone DEFAULT now(),
+-    CONSTRAINT check_total_100 CHECK ((((level_1 + level_2) + level_3) = 100)),
+-    CONSTRAINT level_ratios_level_1_check CHECK (((level_1 >= 0) AND (level_1 <= 100))),
+-    CONSTRAINT level_ratios_level_2_check CHECK (((level_2 >= 0) AND (level_2 <= 100))),
+-    CONSTRAINT level_ratios_level_3_check CHECK (((level_3 >= 0) AND (level_3 <= 100)))
+-);
+-
+-
+---
+--- Name: level_ratios_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.level_ratios_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: level_ratios_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.level_ratios_id_seq OWNED BY public.level_ratios.id;
+-
+-
+---
+--- Name: library; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.library (
+-    id integer NOT NULL,
+-    title character varying(255) NOT NULL,
+-    url character varying(500) NOT NULL,
+-    created_at timestamp without time zone DEFAULT now(),
+-    author character varying(255),
+-    description text,
+-    category character varying(100) DEFAULT 'عام'::character varying,
+-    language character varying(50) DEFAULT 'ar'::character varying,
+-    file_url character varying(1000),
+-    cover_image_url character varying(1000),
+-    pages integer,
+-    size_mb numeric(10,2),
+-    is_active boolean DEFAULT true,
+-    display_order integer DEFAULT 0,
+-    views_count integer DEFAULT 0,
+-    downloads_count integer DEFAULT 0,
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: library_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.library_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: library_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.library_id_seq OWNED BY public.library.id;
+-
+-
+---
+--- Name: library_requests; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.library_requests (
+-    id integer NOT NULL,
+-    requester_name character varying(255) NOT NULL,
+-    requester_phone character varying(50) NOT NULL,
+-    requester_email character varying(255) NOT NULL,
+-    requester_country character varying(100),
+-    book_title character varying(500) NOT NULL,
+-    book_author character varying(255) NOT NULL,
+-    book_description text NOT NULL,
+-    book_category character varying(100) NOT NULL,
+-    book_language character varying(50) DEFAULT 'ar'::character varying NOT NULL,
+-    book_file_url character varying(1000) NOT NULL,
+-    book_cover_url character varying(1000),
+-    book_pages integer,
+-    book_size_mb numeric(10,2),
+-    reason_for_publishing text,
+-    is_author boolean DEFAULT false,
+-    additional_notes text,
+-    status character varying(20) DEFAULT 'pending'::character varying,
+-    admin_notes text,
+-    admin_reviewed_by character varying(255),
+-    published_book_id integer,
+-    created_at timestamp without time zone DEFAULT now(),
+-    reviewed_at timestamp without time zone,
+-    published_at timestamp without time zone,
+-    reviewed_by integer,
+-    CONSTRAINT library_requests_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('approved'::character varying)::text, ('rejected'::character varying)::text, ('published'::character varying)::text])))
+-);
+-
+-
+---
+--- Name: library_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.library_requests_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: library_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.library_requests_id_seq OWNED BY public.library_requests.id;
+-
+-
+---
+--- Name: lottery_history; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.lottery_history (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    lottery_date date NOT NULL,
+-    lottery_time timestamp without time zone DEFAULT now(),
+-    total_eligible integer,
+-    winners_count integer,
+-    winners jsonb,
+-    level2_count integer DEFAULT 0,
+-    level3_count integer DEFAULT 0,
+-    ratios_used jsonb,
+-    lottery_type character varying(20) DEFAULT 'automatic'::character varying,
+-    triggered_by character varying(50) DEFAULT 'cron'::character varying,
+-    admin_id uuid,
+-    notes text,
+-    created_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: TABLE lottery_history; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON TABLE public.lottery_history IS '??? ???? ????? ???????';
+-
+-
+---
+--- Name: lottery_runs; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.lottery_runs (
+-    id integer NOT NULL,
+-    run_date date NOT NULL,
+-    total_eligible integer DEFAULT 0 NOT NULL,
+-    winners_count integer DEFAULT 0 NOT NULL,
+-    winners jsonb,
+-    achievements_granted jsonb,
+-    execution_time_ms integer,
+-    status character varying(20) DEFAULT 'completed'::character varying,
+-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+-    completed_at timestamp without time zone
+-);
+-
+-
+---
+--- Name: lottery_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.lottery_runs_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: lottery_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.lottery_runs_id_seq OWNED BY public.lottery_runs.id;
+-
+-
+---
+--- Name: lottery_statistics; Type: VIEW; Schema: public; Owner: -
+---
+-
+-CREATE VIEW public.lottery_statistics AS
+- SELECT date_trunc('month'::text, (lottery_history.lottery_date)::timestamp with time zone) AS month,
+-    count(*) AS total_lotteries,
+-    sum(lottery_history.total_eligible) AS total_participants,
+-    sum(lottery_history.winners_count) AS total_winners,
+-    avg(lottery_history.total_eligible) AS avg_participants,
+-    count(*) FILTER (WHERE ((lottery_history.lottery_type)::text = 'automatic'::text)) AS automatic_count,
+-    count(*) FILTER (WHERE ((lottery_history.lottery_type)::text = 'manual'::text)) AS manual_count
+-   FROM public.lottery_history
+-  GROUP BY (date_trunc('month'::text, (lottery_history.lottery_date)::timestamp with time zone))
+-  ORDER BY (date_trunc('month'::text, (lottery_history.lottery_date)::timestamp with time zone)) DESC;
+-
+-
+---
+--- Name: notification_settings; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.notification_settings (
+-    id integer NOT NULL,
+-    onesignal_enabled boolean DEFAULT false,
+-    whatsapp_enabled boolean DEFAULT false,
+-    app_id character varying(255),
+-    api_key character varying(500),
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: notification_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.notification_settings_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: notification_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.notification_settings_id_seq OWNED BY public.notification_settings.id;
+-
+-
+---
+--- Name: notifications; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.notifications (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid NOT NULL,
+-    title text NOT NULL,
+-    body text NOT NULL,
+-    type text NOT NULL,
+-    data jsonb DEFAULT '{}'::jsonb,
+-    read boolean DEFAULT false,
+-    sent_at timestamp without time zone DEFAULT now(),
+-    created_at timestamp without time zone DEFAULT now(),
+-    CONSTRAINT notifications_type_check CHECK ((type = ANY (ARRAY['badge'::text, 'lottery'::text, 'prayer'::text, 'system'::text, 'achievement'::text, 'reminder'::text])))
+-);
+-
+-
+---
+--- Name: TABLE notifications; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON TABLE public.notifications IS 'Notifications table - stores all user notifications';
+-
+-
+---
+--- Name: COLUMN notifications.type; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.notifications.type IS 'Notification type: badge, lottery, prayer, system, achievement, reminder';
+-
+-
+---
+--- Name: COLUMN notifications.data; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.notifications.data IS 'Additional JSON data (flexible based on notification type)';
+-
+-
+---
+--- Name: COLUMN notifications.read; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.notifications.read IS 'Has notification been read?';
+-
+-
+---
+--- Name: COLUMN notifications.sent_at; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.notifications.sent_at IS 'When notification was sent';
+-
+-
+---
+--- Name: platform_settings; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.platform_settings (
+-    key text NOT NULL,
+-    value text NOT NULL,
+-    updated_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: platform_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.platform_settings_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: prayer_request_duration; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.prayer_request_duration (
+-    id integer NOT NULL,
+-    duration character varying(20) NOT NULL,
+-    custom_days integer DEFAULT 1,
+-    updated_at timestamp without time zone DEFAULT now(),
+-    CONSTRAINT prayer_request_duration_duration_check CHECK (((duration)::text = ANY ((ARRAY['daily'::character varying, 'weekly'::character varying, 'monthly'::character varying, 'custom'::character varying])::text[])))
+-);
+-
+-
+---
+--- Name: prayer_request_duration_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+---
+-
+-CREATE SEQUENCE public.prayer_request_duration_id_seq
+-    AS integer
+-    START WITH 1
+-    INCREMENT BY 1
+-    NO MINVALUE
+-    NO MAXVALUE
+-    CACHE 1;
+-
+-
+---
+--- Name: prayer_request_duration_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+---
+-
+-ALTER SEQUENCE public.prayer_request_duration_id_seq OWNED BY public.prayer_request_duration.id;
+-
+-
+---
+--- Name: prayer_requests; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.prayer_requests (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid,
+-    type text NOT NULL,
+-    name text,
+-    mother_or_father_name text,
+-    purpose text,
+-    custom_verse text,
+-    status text DEFAULT 'active'::text,
+-    prayer_count integer DEFAULT 0,
+-    is_second_request boolean DEFAULT false,
+-    created_at timestamp without time zone DEFAULT now(),
+-    expires_at timestamp without time zone,
+-    parent_name text,
+-    quranic_verse text,
+-    CONSTRAINT prayer_requests_status_check CHECK ((status = ANY (ARRAY['active'::text, 'completed'::text, 'expired'::text]))),
+-    CONSTRAINT prayer_requests_type_check CHECK ((type = ANY (ARRAY['personal'::text, 'friend'::text, 'deceased'::text, 'sick'::text])))
+-);
+-
+-
+---
+--- Name: prayers; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.prayers (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid,
+-    request_id uuid,
+-    prayed_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: selected_verses; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.selected_verses (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid NOT NULL,
+-    user_name character varying(100) NOT NULL,
+-    verse_text text NOT NULL,
+-    verse_reference character varying(100),
+-    verse_category character varying(50),
+-    selected_at timestamp without time zone DEFAULT now(),
+-    expires_at timestamp without time zone NOT NULL,
+-    is_active boolean DEFAULT true,
+-    usage_count integer DEFAULT 0,
+-    last_used timestamp without time zone,
+-    likes_count integer DEFAULT 0,
+-    notes text,
+-    created_at timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: TABLE selected_verses; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON TABLE public.selected_verses IS '?????? ???????? ?? ???????? ?? ???';
+-
+-
+---
+--- Name: user_stats; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.user_stats (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid,
+-    total_prayers integer DEFAULT 0,
+-    prayers_today integer DEFAULT 0,
+-    prayers_week integer DEFAULT 0,
+-    prayers_month integer DEFAULT 0,
+-    prayers_year integer DEFAULT 0,
+-    total_stars integer DEFAULT 0,
+-    current_level integer DEFAULT 0,
+-    interaction_rate numeric(5,2) DEFAULT 0.00,
+-    last_prayer_date timestamp without time zone,
+-    updated_at timestamp without time zone DEFAULT now(),
+-    level integer DEFAULT 1,
+-    daily_streak integer DEFAULT 0,
+-    max_streak integer DEFAULT 0,
+-    streak_start_date date,
+-    verification_status character varying(20) DEFAULT 'unverified'::character varying,
+-    CONSTRAINT user_stats_level_check CHECK ((level = ANY (ARRAY[1, 2, 3])))
+-);
+-
+-
+---
+--- Name: COLUMN user_stats.last_prayer_date; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.user_stats.last_prayer_date IS '??? ??? ????';
+-
+-
+---
+--- Name: users; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.users (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    full_name text,
+-    mother_or_father_name text,
+-    phone_number text,
+-    country_code text,
+-    email text,
+-    country text,
+-    age integer,
+-    gender text,
+-    device_fingerprint text,
+-    is_anonymous boolean DEFAULT true,
+-    created_at timestamp without time zone DEFAULT now(),
+-    updated_at timestamp without time zone DEFAULT now(),
+-    level integer DEFAULT 1,
+-    last_achievement_date timestamp without time zone,
+-    is_mock_data boolean DEFAULT false,
+-    CONSTRAINT users_gender_check CHECK ((gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text]))),
+-    CONSTRAINT users_level_check CHECK ((level = ANY (ARRAY[1, 2, 3])))
+-);
+-
+-
+---
+--- Name: COLUMN users.level; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.users.level IS 'Verification level: 1=visitor, 2=partial, 3=full';
+-
+-
+---
+--- Name: COLUMN users.last_achievement_date; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.users.last_achievement_date IS 'Date of last achievement received by user';
+-
+-
+---
+--- Name: COLUMN users.is_mock_data; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON COLUMN public.users.is_mock_data IS 'Flag to identify mock/test data';
+-
+-
+---
+--- Name: today_active_users; Type: MATERIALIZED VIEW; Schema: public; Owner: -
+---
+-
+-CREATE MATERIALIZED VIEW public.today_active_users AS
+- SELECT u.id,
+-    u.full_name,
+-    COALESCE(us.interaction_rate, (0)::numeric) AS interaction_rate,
+-    count(p.id) AS prayers_today,
+-    max(p.prayed_at) AS last_prayer_at
+-   FROM ((public.users u
+-     LEFT JOIN public.user_stats us ON ((u.id = us.user_id)))
+-     LEFT JOIN public.prayers p ON (((u.id = p.user_id) AND (p.prayed_at >= CURRENT_DATE))))
+-  WHERE (u.full_name IS NOT NULL)
+-  GROUP BY u.id, u.full_name, us.interaction_rate
+- HAVING (count(p.id) > 0)
+-  WITH NO DATA;
+-
+-
+---
+--- Name: user_achievements; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.user_achievements (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid NOT NULL,
+-    achievement_type character varying(50) NOT NULL,
+-    granted_at timestamp with time zone DEFAULT now(),
+-    expires_at timestamp with time zone,
+-    is_active boolean DEFAULT true,
+-    created_at timestamp with time zone DEFAULT now(),
+-    updated_at timestamp with time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: user_points; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.user_points (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid NOT NULL,
+-    total_points integer DEFAULT 0,
+-    prayer_points integer DEFAULT 0,
+-    activity_points integer DEFAULT 0,
+-    bonus_points integer DEFAULT 0,
+-    rank integer,
+-    rank_in_level integer,
+-    created_at timestamp without time zone DEFAULT now(),
+-    updated_at timestamp without time zone DEFAULT now(),
+-    last_calculated timestamp without time zone DEFAULT now()
+-);
+-
+-
+---
+--- Name: TABLE user_points; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON TABLE public.user_points IS '???? ?????????? ?????? ???????';
+-
+-
+---
+--- Name: win_history; Type: TABLE; Schema: public; Owner: -
+---
+-
+-CREATE TABLE public.win_history (
+-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+-    user_id uuid NOT NULL,
+-    win_type character varying(50) NOT NULL,
+-    achievement_type character varying(50),
+-    stars_earned integer DEFAULT 0,
+-    points_at_win integer DEFAULT 0,
+-    rank_at_win integer,
+-    cooldown_level integer DEFAULT 1,
+-    can_win_again_at timestamp without time zone,
+-    granted_by character varying(50) DEFAULT 'system'::character varying,
+-    admin_id uuid,
+-    won_at timestamp without time zone DEFAULT now(),
+-    expires_at timestamp without time zone
+-);
+-
+-
+---
+--- Name: TABLE win_history; Type: COMMENT; Schema: public; Owner: -
+---
+-
+-COMMENT ON TABLE public.win_history IS '??? ??? ?? ?????? ????? Cooldown';
+-
+-
+---
+--- Name: about_us id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.about_us ALTER COLUMN id SET DEFAULT nextval('public.about_us_id_seq'::regclass);
+-
+-
+---
+--- Name: admin_users id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.admin_users ALTER COLUMN id SET DEFAULT nextval('public.admin_users_id_seq'::regclass);
+-
+-
+---
+--- Name: awareness id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.awareness ALTER COLUMN id SET DEFAULT nextval('public.awareness_id_seq'::regclass);
+-
+-
+---
+--- Name: badge_audit_log id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.badge_audit_log ALTER COLUMN id SET DEFAULT nextval('public.badge_audit_log_id_seq'::regclass);
+-
+-
+---
+--- Name: badge_notifications id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.badge_notifications ALTER COLUMN id SET DEFAULT nextval('public.badge_notifications_id_seq'::regclass);
+-
+-
+---
+--- Name: banner id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.banner ALTER COLUMN id SET DEFAULT nextval('public.banner_id_seq'::regclass);
+-
+-
+---
+--- Name: collective_prayer id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer ALTER COLUMN id SET DEFAULT nextval('public.collective_prayer_id_seq'::regclass);
+-
+-
+---
+--- Name: collective_prayer_participants id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer_participants ALTER COLUMN id SET DEFAULT nextval('public.collective_prayer_participants_id_seq'::regclass);
+-
+-
+---
+--- Name: daily_stats id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.daily_stats ALTER COLUMN id SET DEFAULT nextval('public.daily_stats_id_seq'::regclass);
+-
+-
+---
+--- Name: fingerprint_settings id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.fingerprint_settings ALTER COLUMN id SET DEFAULT nextval('public.fingerprint_settings_id_seq'::regclass);
+-
+-
+---
+--- Name: level_ratios id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.level_ratios ALTER COLUMN id SET DEFAULT nextval('public.level_ratios_id_seq'::regclass);
+-
+-
+---
+--- Name: library id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.library ALTER COLUMN id SET DEFAULT nextval('public.library_id_seq'::regclass);
+-
+-
+---
+--- Name: library_requests id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.library_requests ALTER COLUMN id SET DEFAULT nextval('public.library_requests_id_seq'::regclass);
+-
+-
+---
+--- Name: lottery_runs id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.lottery_runs ALTER COLUMN id SET DEFAULT nextval('public.lottery_runs_id_seq'::regclass);
+-
+-
+---
+--- Name: notification_settings id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.notification_settings ALTER COLUMN id SET DEFAULT nextval('public.notification_settings_id_seq'::regclass);
+-
+-
+---
+--- Name: prayer_request_duration id; Type: DEFAULT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayer_request_duration ALTER COLUMN id SET DEFAULT nextval('public.prayer_request_duration_id_seq'::regclass);
+-
+-
+---
+--- Name: about_us about_us_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.about_us
+-    ADD CONSTRAINT about_us_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: achievement_settings achievement_settings_feature_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.achievement_settings
+-    ADD CONSTRAINT achievement_settings_feature_name_key UNIQUE (feature_name);
+-
+-
+---
+--- Name: achievement_settings achievement_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.achievement_settings
+-    ADD CONSTRAINT achievement_settings_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: achievements achievements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.achievements
+-    ADD CONSTRAINT achievements_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: admin_settings admin_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.admin_settings
+-    ADD CONSTRAINT admin_settings_pkey PRIMARY KEY (setting_key);
+-
+-
+---
+--- Name: admin_users admin_users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.admin_users
+-    ADD CONSTRAINT admin_users_email_key UNIQUE (email);
+-
+-
+---
+--- Name: admin_users admin_users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.admin_users
+-    ADD CONSTRAINT admin_users_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: awareness awareness_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.awareness
+-    ADD CONSTRAINT awareness_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: badge_audit_log badge_audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.badge_audit_log
+-    ADD CONSTRAINT badge_audit_log_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: badge_notifications badge_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.badge_notifications
+-    ADD CONSTRAINT badge_notifications_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: banner banner_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.banner
+-    ADD CONSTRAINT banner_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: collective_prayer_participants collective_prayer_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer_participants
+-    ADD CONSTRAINT collective_prayer_participants_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: collective_prayer_participants collective_prayer_participants_user_id_prayer_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer_participants
+-    ADD CONSTRAINT collective_prayer_participants_user_id_prayer_id_key UNIQUE (user_id, prayer_id);
+-
+-
+---
+--- Name: collective_prayer collective_prayer_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer
+-    ADD CONSTRAINT collective_prayer_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: contact_messages contact_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.contact_messages
+-    ADD CONSTRAINT contact_messages_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: daily_stats daily_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.daily_stats
+-    ADD CONSTRAINT daily_stats_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: daily_stats daily_stats_stat_date_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.daily_stats
+-    ADD CONSTRAINT daily_stats_stat_date_key UNIQUE (stat_date);
+-
+-
+---
+--- Name: fingerprint_settings fingerprint_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.fingerprint_settings
+-    ADD CONSTRAINT fingerprint_settings_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: level_ratios level_ratios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.level_ratios
+-    ADD CONSTRAINT level_ratios_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: library library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.library
+-    ADD CONSTRAINT library_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: library_requests library_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.library_requests
+-    ADD CONSTRAINT library_requests_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: lottery_history lottery_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.lottery_history
+-    ADD CONSTRAINT lottery_history_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: lottery_runs lottery_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.lottery_runs
+-    ADD CONSTRAINT lottery_runs_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: lottery_runs lottery_runs_run_date_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.lottery_runs
+-    ADD CONSTRAINT lottery_runs_run_date_key UNIQUE (run_date);
+-
+-
+---
+--- Name: notification_settings notification_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.notification_settings
+-    ADD CONSTRAINT notification_settings_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.notifications
+-    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: platform_settings platform_settings_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.platform_settings
+-    ADD CONSTRAINT platform_settings_key_key UNIQUE (key);
+-
+-
+---
+--- Name: platform_settings platform_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.platform_settings
+-    ADD CONSTRAINT platform_settings_pkey PRIMARY KEY (key);
+-
+-
+---
+--- Name: prayer_request_duration prayer_request_duration_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayer_request_duration
+-    ADD CONSTRAINT prayer_request_duration_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: prayer_requests prayer_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayer_requests
+-    ADD CONSTRAINT prayer_requests_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: prayers prayers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayers
+-    ADD CONSTRAINT prayers_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: selected_verses selected_verses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.selected_verses
+-    ADD CONSTRAINT selected_verses_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: user_achievements user_achievements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_achievements
+-    ADD CONSTRAINT user_achievements_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: user_points user_points_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_points
+-    ADD CONSTRAINT user_points_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: user_points user_points_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_points
+-    ADD CONSTRAINT user_points_user_id_key UNIQUE (user_id);
+-
+-
+---
+--- Name: user_stats user_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_stats
+-    ADD CONSTRAINT user_stats_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: user_stats user_stats_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_stats
+-    ADD CONSTRAINT user_stats_user_id_key UNIQUE (user_id);
+-
+-
+---
+--- Name: users users_device_fingerprint_key; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.users
+-    ADD CONSTRAINT users_device_fingerprint_key UNIQUE (device_fingerprint);
+-
+-
+---
+--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.users
+-    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: win_history win_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.win_history
+-    ADD CONSTRAINT win_history_pkey PRIMARY KEY (id);
+-
+-
+---
+--- Name: idx_achievements_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_achievements_date ON public.achievements USING btree (achieved_at DESC);
+-
+-
+---
+--- Name: idx_achievements_expires; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_achievements_expires ON public.achievements USING btree (expires_at);
+-
+-
+---
+--- Name: idx_achievements_type; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_achievements_type ON public.achievements USING btree (achievement_type);
+-
+-
+---
+--- Name: idx_achievements_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_achievements_user ON public.achievements USING btree (user_id);
+-
+-
+---
+--- Name: idx_achievements_user_id; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_achievements_user_id ON public.achievements USING btree (user_id);
+-
+-
+---
+--- Name: idx_admin_settings_key; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_admin_settings_key ON public.admin_settings USING btree (setting_key);
+-
+-
+---
+--- Name: idx_admin_users_email; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_admin_users_email ON public.admin_users USING btree (email);
+-
+-
+---
+--- Name: idx_admin_users_role; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_admin_users_role ON public.admin_users USING btree (role);
+-
+-
+---
+--- Name: idx_awareness_active; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_awareness_active ON public.awareness USING btree (is_active, created_at DESC);
+-
+-
+---
+--- Name: idx_badge_audit_event; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_badge_audit_event ON public.badge_audit_log USING btree (event_type, created_at DESC);
+-
+-
+---
+--- Name: idx_badge_audit_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_badge_audit_user ON public.badge_audit_log USING btree (user_id, created_at DESC);
+-
+-
+---
+--- Name: idx_badge_notif_lookup; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_badge_notif_lookup ON public.badge_notifications USING btree (user_id, notification_type, badge_level);
+-
+-
+---
+--- Name: idx_badge_notif_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_badge_notif_user ON public.badge_notifications USING btree (user_id, notification_type, sent_at DESC);
+-
+-
+---
+--- Name: idx_banner_active; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_banner_active ON public.banner USING btree (is_active, created_at DESC);
+-
+-
+---
+--- Name: idx_collective_active; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_collective_active ON public.collective_prayer USING btree (is_active, created_at DESC);
+-
+-
+---
+--- Name: idx_daily_stats_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_daily_stats_date ON public.daily_stats USING btree (stat_date DESC);
+-
+-
+---
+--- Name: idx_library_active; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_library_active ON public.library USING btree (is_active);
+-
+-
+---
+--- Name: idx_library_category; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_library_category ON public.library USING btree (category);
+-
+-
+---
+--- Name: idx_library_created; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_library_created ON public.library USING btree (created_at DESC);
+-
+-
+---
+--- Name: idx_library_order; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_library_order ON public.library USING btree (display_order);
+-
+-
+---
+--- Name: idx_lottery_history_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_lottery_history_date ON public.lottery_history USING btree (lottery_date DESC);
+-
+-
+---
+--- Name: idx_lottery_history_type; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_lottery_history_type ON public.lottery_history USING btree (lottery_type);
+-
+-
+---
+--- Name: idx_lottery_runs_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_lottery_runs_date ON public.lottery_runs USING btree (run_date DESC);
+-
+-
+---
+--- Name: idx_messages_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_messages_date ON public.contact_messages USING btree (created_at DESC);
+-
+-
+---
+--- Name: idx_messages_read; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_messages_read ON public.contact_messages USING btree (is_read);
+-
+-
+---
+--- Name: idx_notifications_created; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_notifications_created ON public.notifications USING btree (created_at DESC);
+-
+-
+---
+--- Name: idx_notifications_type; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_notifications_type ON public.notifications USING btree (type);
+-
+-
+---
+--- Name: idx_notifications_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_notifications_user ON public.notifications USING btree (user_id);
+-
+-
+---
+--- Name: idx_notifications_user_created; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_notifications_user_created ON public.notifications USING btree (user_id, created_at DESC);
+-
+-
+---
+--- Name: idx_notifications_user_read; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_notifications_user_read ON public.notifications USING btree (user_id, read) WHERE (read = false);
+-
+-
+---
+--- Name: idx_platform_settings_key; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_platform_settings_key ON public.platform_settings USING btree (key);
+-
+-
+---
+--- Name: idx_prayer_requests_quranic_verse; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayer_requests_quranic_verse ON public.prayer_requests USING btree (quranic_verse) WHERE (quranic_verse IS NOT NULL);
+-
+-
+---
+--- Name: idx_prayer_requests_status_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayer_requests_status_date ON public.prayer_requests USING btree (status, created_at DESC) WHERE (status <> 'answered'::text);
+-
+-
+---
+--- Name: idx_prayer_requests_user_status; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayer_requests_user_status ON public.prayer_requests USING btree (user_id, status, created_at DESC);
+-
+-
+---
+--- Name: idx_prayers_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayers_date ON public.prayers USING btree (prayed_at DESC);
+-
+-
+---
+--- Name: idx_prayers_request; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayers_request ON public.prayers USING btree (request_id);
+-
+-
+---
+--- Name: idx_prayers_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayers_user ON public.prayers USING btree (user_id);
+-
+-
+---
+--- Name: idx_prayers_user_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_prayers_user_date ON public.prayers USING btree (user_id, prayed_at DESC);
+-
+-
+---
+--- Name: idx_requests_created; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_requests_created ON public.prayer_requests USING btree (created_at DESC);
+-
+-
+---
+--- Name: idx_requests_email; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_requests_email ON public.library_requests USING btree (requester_email);
+-
+-
+---
+--- Name: idx_requests_status; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_requests_status ON public.prayer_requests USING btree (status);
+-
+-
+---
+--- Name: idx_requests_type; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_requests_type ON public.prayer_requests USING btree (type);
+-
+-
+---
+--- Name: idx_requests_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_requests_user ON public.prayer_requests USING btree (user_id);
+-
+-
+---
+--- Name: idx_selected_verses_active; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_selected_verses_active ON public.selected_verses USING btree (is_active, expires_at);
+-
+-
+---
+--- Name: idx_selected_verses_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_selected_verses_user ON public.selected_verses USING btree (user_id);
+-
+-
+---
+--- Name: idx_stats_level; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_stats_level ON public.user_stats USING btree (current_level DESC);
+-
+-
+---
+--- Name: idx_stats_rate; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_stats_rate ON public.user_stats USING btree (interaction_rate DESC);
+-
+-
+---
+--- Name: idx_stats_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_stats_user ON public.user_stats USING btree (user_id);
+-
+-
+---
+--- Name: idx_user_achievements_active; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_user_achievements_active ON public.user_achievements USING btree (user_id, is_active, expires_at);
+-
+-
+---
+--- Name: idx_user_achievements_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_user_achievements_user ON public.user_achievements USING btree (user_id);
+-
+-
+---
+--- Name: idx_user_points_rank; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_user_points_rank ON public.user_points USING btree (rank);
+-
+-
+---
+--- Name: idx_user_points_total; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_user_points_total ON public.user_points USING btree (total_points DESC);
+-
+-
+---
+--- Name: idx_user_points_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_user_points_user ON public.user_points USING btree (user_id);
+-
+-
+---
+--- Name: idx_users_created; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_users_created ON public.users USING btree (created_at DESC);
+-
+-
+---
+--- Name: idx_users_fingerprint; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_users_fingerprint ON public.users USING btree (device_fingerprint);
+-
+-
+---
+--- Name: idx_users_last_achievement; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_users_last_achievement ON public.users USING btree (last_achievement_date DESC);
+-
+-
+---
+--- Name: idx_users_level; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_users_level ON public.users USING btree (level);
+-
+-
+---
+--- Name: idx_users_mock_data; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_users_mock_data ON public.users USING btree (is_mock_data) WHERE (is_mock_data = true);
+-
+-
+---
+--- Name: idx_users_phone; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_users_phone ON public.users USING btree (phone_number);
+-
+-
+---
+--- Name: idx_win_history_cooldown; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_win_history_cooldown ON public.win_history USING btree (can_win_again_at);
+-
+-
+---
+--- Name: idx_win_history_date; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_win_history_date ON public.win_history USING btree (won_at DESC);
+-
+-
+---
+--- Name: idx_win_history_user; Type: INDEX; Schema: public; Owner: -
+---
+-
+-CREATE INDEX idx_win_history_user ON public.win_history USING btree (user_id);
+-
+-
+---
+--- Name: user_stats badge_change_trigger; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER badge_change_trigger AFTER UPDATE ON public.user_stats FOR EACH ROW EXECUTE FUNCTION public.log_badge_change();
+-
+-
+---
+--- Name: users trigger_update_user_level; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER trigger_update_user_level AFTER INSERT OR UPDATE OF full_name, mother_or_father_name, phone_number ON public.users FOR EACH ROW EXECUTE FUNCTION public.update_user_level();
+-
+-
+---
+--- Name: about_us update_about_us_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_about_us_updated_at BEFORE UPDATE ON public.about_us FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: admin_settings update_admin_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_admin_settings_updated_at BEFORE UPDATE ON public.admin_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: awareness update_awareness_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_awareness_updated_at BEFORE UPDATE ON public.awareness FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: banner update_banner_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_banner_updated_at BEFORE UPDATE ON public.banner FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: collective_prayer update_collective_prayer_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_collective_prayer_updated_at BEFORE UPDATE ON public.collective_prayer FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: fingerprint_settings update_fingerprint_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_fingerprint_settings_updated_at BEFORE UPDATE ON public.fingerprint_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: level_ratios update_level_ratios_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_level_ratios_updated_at BEFORE UPDATE ON public.level_ratios FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: library update_library_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_library_updated_at BEFORE UPDATE ON public.library FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: notification_settings update_notification_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_notification_settings_updated_at BEFORE UPDATE ON public.notification_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: prayer_request_duration update_prayer_duration_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_prayer_duration_updated_at BEFORE UPDATE ON public.prayer_request_duration FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: prayers update_streak_on_prayer; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_streak_on_prayer AFTER INSERT ON public.prayers FOR EACH ROW EXECUTE FUNCTION public.update_daily_streak();
+-
+-
+---
+--- Name: users update_users_updated_at; Type: TRIGGER; Schema: public; Owner: -
+---
+-
+-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-
+-
+---
+--- Name: achievement_settings achievement_settings_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.achievement_settings
+-    ADD CONSTRAINT achievement_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: achievements achievements_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.achievements
+-    ADD CONSTRAINT achievements_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: admin_users admin_users_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.admin_users
+-    ADD CONSTRAINT admin_users_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admin_users(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: admin_users admin_users_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.admin_users
+-    ADD CONSTRAINT admin_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: badge_audit_log badge_audit_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.badge_audit_log
+-    ADD CONSTRAINT badge_audit_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: badge_notifications badge_notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.badge_notifications
+-    ADD CONSTRAINT badge_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: collective_prayer_participants collective_prayer_participants_prayer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer_participants
+-    ADD CONSTRAINT collective_prayer_participants_prayer_id_fkey FOREIGN KEY (prayer_id) REFERENCES public.collective_prayer(id);
+-
+-
+---
+--- Name: collective_prayer_participants collective_prayer_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.collective_prayer_participants
+-    ADD CONSTRAINT collective_prayer_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+-
+-
+---
+--- Name: library_requests library_requests_published_book_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.library_requests
+-    ADD CONSTRAINT library_requests_published_book_id_fkey FOREIGN KEY (published_book_id) REFERENCES public.library(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: library_requests library_requests_reviewed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.library_requests
+-    ADD CONSTRAINT library_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.admin_users(id);
+-
+-
+---
+--- Name: lottery_history lottery_history_admin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.lottery_history
+-    ADD CONSTRAINT lottery_history_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.users(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.notifications
+-    ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: prayer_requests prayer_requests_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayer_requests
+-    ADD CONSTRAINT prayer_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: prayers prayers_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayers
+-    ADD CONSTRAINT prayers_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.prayer_requests(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: prayers prayers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.prayers
+-    ADD CONSTRAINT prayers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: selected_verses selected_verses_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.selected_verses
+-    ADD CONSTRAINT selected_verses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: user_achievements user_achievements_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_achievements
+-    ADD CONSTRAINT user_achievements_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: user_points user_points_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_points
+-    ADD CONSTRAINT user_points_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: user_stats user_stats_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.user_stats
+-    ADD CONSTRAINT user_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- Name: win_history win_history_admin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.win_history
+-    ADD CONSTRAINT win_history_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.users(id) ON DELETE SET NULL;
+-
+-
+---
+--- Name: win_history win_history_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+---
+-
+-ALTER TABLE ONLY public.win_history
+-    ADD CONSTRAINT win_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+-
+-
+---
+--- PostgreSQL database dump complete
+---
+-
+-\unrestrict dXSDLublVGvy9gUbTm75QBU1CLU5E1HIZbwriSZfulEr82pnJjRbIcPtwz2J2wU
+-
++
++$$;
++
++
++SET default_tablespace = '';
++
++SET default_table_access_method = heap;
++
++--
++-- Name: about_us; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.about_us (
++    id integer NOT NULL,
++    content text NOT NULL,
++    links jsonb DEFAULT '[]'::jsonb,
++    email character varying(255),
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: about_us_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.about_us_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: about_us_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.about_us_id_seq OWNED BY public.about_us.id;
++
++
++--
++-- Name: achievement_settings; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.achievement_settings (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    feature_name character varying(50) NOT NULL,
++    is_automatic boolean DEFAULT true,
++    is_enabled boolean DEFAULT true,
++    setting_value jsonb DEFAULT '{}'::jsonb,
++    updated_by uuid,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: achievements; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.achievements (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid,
++    achievement_type text NOT NULL,
++    stars_earned integer NOT NULL,
++    achieved_at timestamp without time zone DEFAULT now(),
++    expires_at timestamp without time zone,
++    is_active boolean DEFAULT true,
++    CONSTRAINT achievements_achievement_type_check CHECK ((achievement_type = ANY (ARRAY['name_display'::text, 'double_prayer'::text, 'verse_selection'::text])))
++);
++
++
++--
++-- Name: selected_verses; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.selected_verses (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid NOT NULL,
++    user_name character varying(100) NOT NULL,
++    verse_text text NOT NULL,
++    verse_reference character varying(100),
++    verse_category character varying(50),
++    selected_at timestamp without time zone DEFAULT now(),
++    expires_at timestamp without time zone NOT NULL,
++    is_active boolean DEFAULT true,
++    usage_count integer DEFAULT 0,
++    last_used timestamp without time zone,
++    likes_count integer DEFAULT 0,
++    notes text,
++    created_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: TABLE selected_verses; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON TABLE public.selected_verses IS '?????? ???????? ?? ???????? ?? ???';
++
++
++--
++-- Name: user_stats; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.user_stats (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid,
++    total_prayers integer DEFAULT 0,
++    prayers_today integer DEFAULT 0,
++    prayers_week integer DEFAULT 0,
++    prayers_month integer DEFAULT 0,
++    prayers_year integer DEFAULT 0,
++    total_stars integer DEFAULT 0,
++    current_level integer DEFAULT 0,
++    interaction_rate numeric(5,2) DEFAULT 0.00,
++    last_prayer_date timestamp without time zone,
++    updated_at timestamp without time zone DEFAULT now(),
++    total_prayers_given integer DEFAULT 0,
++    total_notifications_received integer DEFAULT 0,
++    level integer DEFAULT 1,
++    last_achievement_date timestamp without time zone,
++    cooldown_level integer DEFAULT 1,
++    daily_streak integer DEFAULT 0,
++    verification_status character varying(20) DEFAULT 'active'::character varying,
++    grace_period_start timestamp without time zone,
++    previous_verification_level character varying(10),
++    verification_history jsonb DEFAULT '[]'::jsonb,
++    last_calculated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: COLUMN user_stats.last_prayer_date; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.last_prayer_date IS '??? ??? ????';
++
++
++--
++-- Name: COLUMN user_stats.cooldown_level; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.cooldown_level IS '????? Cooldown ??????? (1-4)';
++
++
++--
++-- Name: COLUMN user_stats.daily_streak; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.daily_streak IS '??? ?????? ????????? ??????';
++
++
++--
++-- Name: COLUMN user_stats.verification_status; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.verification_status IS 'حالة الشارة: active (نشطة)، grace_period (فترة سماح 30 يوم)، lost (مفقودة)';
++
++
++--
++-- Name: COLUMN user_stats.grace_period_start; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.grace_period_start IS 'تاريخ بداية فترة السماح - إذا نزل المعدل عن الحد الأدنى';
++
++
++--
++-- Name: COLUMN user_stats.previous_verification_level; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.previous_verification_level IS 'المستوى السابق قبل فقدان الشارة (BLUE/GREEN/GOLD)';
++
++
++--
++-- Name: COLUMN user_stats.verification_history; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.user_stats.verification_history IS 'سجل JSON لكل تغيرات الشارة مع التواريخ والأسباب';
++
++
++--
++-- Name: users; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.users (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    full_name text,
++    mother_or_father_name text,
++    phone_number text,
++    country_code text,
++    email text,
++    country text,
++    age integer,
++    gender text,
++    device_fingerprint text,
++    is_anonymous boolean DEFAULT true,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now(),
++    level integer DEFAULT 1,
++    last_achievement_date timestamp without time zone,
++    is_mock_data boolean DEFAULT false,
++    CONSTRAINT users_gender_check CHECK ((gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text]))),
++    CONSTRAINT users_level_check CHECK ((level = ANY (ARRAY[1, 2, 3])))
++);
++
++
++--
++-- Name: COLUMN users.level; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.users.level IS 'Verification level: 1=visitor, 2=partial, 3=full';
++
++
++--
++-- Name: COLUMN users.last_achievement_date; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.users.last_achievement_date IS 'Date of last achievement received by user';
++
++
++--
++-- Name: active_verses; Type: VIEW; Schema: public; Owner: -
++--
++
++CREATE VIEW public.active_verses AS
++ SELECT sv.id,
++    sv.user_id,
++    sv.user_name,
++    sv.verse_text,
++    sv.verse_reference,
++    sv.verse_category,
++    sv.selected_at,
++    sv.expires_at,
++    sv.is_active,
++    sv.usage_count,
++    sv.last_used,
++    sv.likes_count,
++    sv.notes,
++    sv.created_at,
++    u.full_name AS user_full_name,
++    us.level AS user_level,
++    us.total_stars AS user_stars
++   FROM ((public.selected_verses sv
++     JOIN public.users u ON ((sv.user_id = u.id)))
++     JOIN public.user_stats us ON ((u.id = us.user_id)))
++  WHERE ((sv.is_active = true) AND (sv.expires_at > now()))
++  ORDER BY sv.selected_at DESC;
++
++
++--
++-- Name: admin_settings; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.admin_settings (
++    setting_key character varying(100) NOT NULL,
++    setting_value text NOT NULL,
++    updated_at timestamp without time zone DEFAULT now(),
++    description text
++);
++
++
++--
++-- Name: admin_users; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.admin_users (
++    id integer NOT NULL,
++    user_id uuid,
++    email character varying(255) NOT NULL,
++    password_hash character varying(255) NOT NULL,
++    role character varying(50) DEFAULT 'admin'::character varying NOT NULL,
++    is_active boolean DEFAULT true,
++    created_at timestamp without time zone DEFAULT now(),
++    last_login timestamp without time zone,
++    created_by integer
++);
++
++
++--
++-- Name: admin_users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.admin_users_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: admin_users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.admin_users_id_seq OWNED BY public.admin_users.id;
++
++
++--
++-- Name: awareness; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.awareness (
++    id integer NOT NULL,
++    content text NOT NULL,
++    links jsonb DEFAULT '[]'::jsonb,
++    is_active boolean DEFAULT true,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: awareness_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.awareness_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: awareness_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.awareness_id_seq OWNED BY public.awareness.id;
++
++
++--
++-- Name: badge_audit_log; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.badge_audit_log (
++    id integer NOT NULL,
++    user_id uuid,
++    event_type character varying(50) NOT NULL,
++    old_status character varying(20),
++    new_status character varying(20),
++    old_rate numeric(5,2),
++    new_rate numeric(5,2),
++    reason text,
++    created_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: badge_audit_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.badge_audit_log_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: badge_audit_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.badge_audit_log_id_seq OWNED BY public.badge_audit_log.id;
++
++
++--
++-- Name: badge_notifications; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.badge_notifications (
++    id integer NOT NULL,
++    user_id uuid,
++    notification_type character varying(50) NOT NULL,
++    badge_level character varying(10),
++    sent_at timestamp without time zone DEFAULT now(),
++    metadata jsonb DEFAULT '{}'::jsonb
++);
++
++
++--
++-- Name: TABLE badge_notifications; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON TABLE public.badge_notifications IS 'سجل كامل للإشعارات المرسلة - يمنع التكرار';
++
++
++--
++-- Name: COLUMN badge_notifications.notification_type; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.badge_notifications.notification_type IS 'نوع الإشعار: gained, warning, grace, lost, restored';
++
++
++--
++-- Name: COLUMN badge_notifications.badge_level; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.badge_notifications.badge_level IS 'مستوى الشارة: BLUE, GREEN, GOLD';
++
++
++--
++-- Name: COLUMN badge_notifications.metadata; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.badge_notifications.metadata IS 'بيانات إضافية بصيغة JSON (مرن للمستقبل)';
++
++
++--
++-- Name: badge_notifications_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.badge_notifications_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: badge_notifications_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.badge_notifications_id_seq OWNED BY public.badge_notifications.id;
++
++
++--
++-- Name: banner; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.banner (
++    id integer NOT NULL,
++    content text NOT NULL,
++    link character varying(500),
++    is_active boolean DEFAULT true,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: banner_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.banner_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: banner_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.banner_id_seq OWNED BY public.banner.id;
++
++
++--
++-- Name: collective_prayer; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.collective_prayer (
++    id integer NOT NULL,
++    type character varying(20) NOT NULL,
++    content text NOT NULL,
++    timing character varying(20) NOT NULL,
++    start_date timestamp without time zone,
++    end_date timestamp without time zone,
++    is_active boolean DEFAULT true,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now(),
++    scheduled_datetime timestamp without time zone,
++    duration_minutes integer DEFAULT 30,
++    final_participant_count integer DEFAULT 0,
++    ended_at timestamp without time zone,
++    CONSTRAINT collective_prayer_timing_check CHECK (((timing)::text = ANY ((ARRAY['always'::character varying, 'scheduled'::character varying])::text[]))),
++    CONSTRAINT collective_prayer_type_check CHECK (((type)::text = ANY ((ARRAY['verse'::character varying, 'purpose'::character varying, 'custom'::character varying])::text[])))
++);
++
++
++--
++-- Name: collective_prayer_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.collective_prayer_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: collective_prayer_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.collective_prayer_id_seq OWNED BY public.collective_prayer.id;
++
++
++--
++-- Name: collective_prayer_participants; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.collective_prayer_participants (
++    id integer NOT NULL,
++    user_id uuid NOT NULL,
++    prayer_id integer NOT NULL,
++    created_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: collective_prayer_participants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.collective_prayer_participants_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: collective_prayer_participants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.collective_prayer_participants_id_seq OWNED BY public.collective_prayer_participants.id;
++
++
++--
++-- Name: contact_messages; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.contact_messages (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    name text,
++    email text,
++    message text NOT NULL,
++    is_read boolean DEFAULT false,
++    created_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: daily_stats; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.daily_stats (
++    id integer NOT NULL,
++    stat_date date NOT NULL,
++    total_users integer DEFAULT 0 NOT NULL,
++    active_users integer DEFAULT 0 NOT NULL,
++    new_users integer DEFAULT 0 NOT NULL,
++    total_prayer_requests integer DEFAULT 0 NOT NULL,
++    total_prayers_given integer DEFAULT 0 NOT NULL,
++    answered_prayers integer DEFAULT 0 NOT NULL,
++    blue_badges integer DEFAULT 0 NOT NULL,
++    green_badges integer DEFAULT 0 NOT NULL,
++    gold_badges integer DEFAULT 0 NOT NULL,
++    avg_interaction_rate numeric(5,2),
++    top_users jsonb,
++    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
++);
++
++
++--
++-- Name: daily_stats_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.daily_stats_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: daily_stats_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.daily_stats_id_seq OWNED BY public.daily_stats.id;
++
++
++--
++-- Name: fingerprint_settings; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.fingerprint_settings (
++    id integer NOT NULL,
++    enabled boolean DEFAULT true,
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: fingerprint_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.fingerprint_settings_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: fingerprint_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.fingerprint_settings_id_seq OWNED BY public.fingerprint_settings.id;
++
++
++--
++-- Name: level_ratios; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.level_ratios (
++    id integer NOT NULL,
++    level_1 integer NOT NULL,
++    level_2 integer NOT NULL,
++    level_3 integer NOT NULL,
++    updated_at timestamp without time zone DEFAULT now(),
++    CONSTRAINT check_total_100 CHECK ((((level_1 + level_2) + level_3) = 100)),
++    CONSTRAINT level_ratios_level_1_check CHECK (((level_1 >= 0) AND (level_1 <= 100))),
++    CONSTRAINT level_ratios_level_2_check CHECK (((level_2 >= 0) AND (level_2 <= 100))),
++    CONSTRAINT level_ratios_level_3_check CHECK (((level_3 >= 0) AND (level_3 <= 100)))
++);
++
++
++--
++-- Name: level_ratios_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.level_ratios_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: level_ratios_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.level_ratios_id_seq OWNED BY public.level_ratios.id;
++
++
++--
++-- Name: library; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.library (
++    id integer NOT NULL,
++    title character varying(500) NOT NULL,
++    author character varying(255),
++    description text,
++    category character varying(100) DEFAULT 'عام'::character varying,
++    language character varying(50) DEFAULT 'ar'::character varying,
++    file_url character varying(1000),
++    cover_image_url character varying(1000),
++    pages integer,
++    size_mb numeric(10,2),
++    is_active boolean DEFAULT true,
++    display_order integer DEFAULT 0,
++    views_count integer DEFAULT 0,
++    downloads_count integer DEFAULT 0,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: library_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.library_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: library_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.library_id_seq OWNED BY public.library.id;
++
++
++--
++-- Name: library_requests; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.library_requests (
++    id integer NOT NULL,
++    requester_name character varying(255) NOT NULL,
++    requester_phone character varying(50) NOT NULL,
++    requester_email character varying(255) NOT NULL,
++    requester_country character varying(100),
++    book_title character varying(500) NOT NULL,
++    book_author character varying(255) NOT NULL,
++    book_description text NOT NULL,
++    book_category character varying(100) NOT NULL,
++    book_language character varying(50) DEFAULT 'ar'::character varying NOT NULL,
++    book_file_url character varying(1000) NOT NULL,
++    book_cover_url character varying(1000),
++    book_pages integer,
++    book_size_mb numeric(10,2),
++    reason_for_publishing text,
++    is_author boolean DEFAULT false,
++    additional_notes text,
++    status character varying(20) DEFAULT 'pending'::character varying,
++    admin_notes text,
++    admin_reviewed_by character varying(255),
++    published_book_id integer,
++    created_at timestamp without time zone DEFAULT now(),
++    reviewed_at timestamp without time zone,
++    published_at timestamp without time zone,
++    reviewed_by integer,
++    CONSTRAINT library_requests_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'published'::character varying])::text[])))
++);
++
++
++--
++-- Name: library_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.library_requests_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: library_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.library_requests_id_seq OWNED BY public.library_requests.id;
++
++
++--
++-- Name: lottery_history; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.lottery_history (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    lottery_date date NOT NULL,
++    lottery_time timestamp without time zone DEFAULT now(),
++    total_eligible integer,
++    winners_count integer,
++    winners jsonb,
++    level2_count integer DEFAULT 0,
++    level3_count integer DEFAULT 0,
++    ratios_used jsonb,
++    lottery_type character varying(20) DEFAULT 'automatic'::character varying,
++    triggered_by character varying(50) DEFAULT 'cron'::character varying,
++    admin_id uuid,
++    notes text,
++    created_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: TABLE lottery_history; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON TABLE public.lottery_history IS '??? ???? ????? ???????';
++
++
++--
++-- Name: lottery_runs; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.lottery_runs (
++    id integer NOT NULL,
++    run_date date NOT NULL,
++    total_eligible integer DEFAULT 0 NOT NULL,
++    winners_count integer DEFAULT 0 NOT NULL,
++    winners jsonb,
++    achievements_granted jsonb,
++    execution_time_ms integer,
++    status character varying(20) DEFAULT 'completed'::character varying,
++    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
++    completed_at timestamp without time zone
++);
++
++
++--
++-- Name: lottery_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.lottery_runs_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: lottery_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.lottery_runs_id_seq OWNED BY public.lottery_runs.id;
++
++
++--
++-- Name: lottery_statistics; Type: VIEW; Schema: public; Owner: -
++--
++
++CREATE VIEW public.lottery_statistics AS
++ SELECT date_trunc('month'::text, (lottery_date)::timestamp with time zone) AS month,
++    count(*) AS total_lotteries,
++    sum(total_eligible) AS total_participants,
++    sum(winners_count) AS total_winners,
++    avg(total_eligible) AS avg_participants,
++    count(*) FILTER (WHERE ((lottery_type)::text = 'automatic'::text)) AS automatic_count,
++    count(*) FILTER (WHERE ((lottery_type)::text = 'manual'::text)) AS manual_count
++   FROM public.lottery_history
++  GROUP BY (date_trunc('month'::text, (lottery_date)::timestamp with time zone))
++  ORDER BY (date_trunc('month'::text, (lottery_date)::timestamp with time zone)) DESC;
++
++
++--
++-- Name: notification_settings; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.notification_settings (
++    id integer NOT NULL,
++    onesignal_enabled boolean DEFAULT false,
++    whatsapp_enabled boolean DEFAULT false,
++    app_id character varying(255),
++    api_key character varying(500),
++    updated_at timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: notification_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.notification_settings_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: notification_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.notification_settings_id_seq OWNED BY public.notification_settings.id;
++
++
++--
++-- Name: notifications; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.notifications (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid NOT NULL,
++    title text NOT NULL,
++    body text NOT NULL,
++    type text NOT NULL,
++    data jsonb DEFAULT '{}'::jsonb,
++    read boolean DEFAULT false,
++    sent_at timestamp without time zone DEFAULT now(),
++    created_at timestamp without time zone DEFAULT now(),
++    CONSTRAINT notifications_type_check CHECK ((type = ANY (ARRAY['badge'::text, 'lottery'::text, 'prayer'::text, 'system'::text, 'achievement'::text, 'reminder'::text])))
++);
++
++
++--
++-- Name: TABLE notifications; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON TABLE public.notifications IS 'Notifications table - stores all user notifications';
++
++
++--
++-- Name: COLUMN notifications.type; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.notifications.type IS 'Notification type: badge, lottery, prayer, system, achievement, reminder';
++
++
++--
++-- Name: COLUMN notifications.data; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.notifications.data IS 'Additional JSON data (flexible based on notification type)';
++
++
++--
++-- Name: COLUMN notifications.read; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.notifications.read IS 'Has notification been read?';
++
++
++--
++-- Name: COLUMN notifications.sent_at; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.notifications.sent_at IS 'When notification was sent';
++
++
++--
++-- Name: platform_settings; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.platform_settings (
++    id integer NOT NULL,
++    key character varying(100) NOT NULL,
++    value jsonb NOT NULL,
++    updated_at timestamp without time zone DEFAULT now(),
++    updated_by integer
++);
++
++
++--
++-- Name: platform_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.platform_settings_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: platform_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.platform_settings_id_seq OWNED BY public.platform_settings.id;
++
++
++--
++-- Name: prayer_request_duration; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.prayer_request_duration (
++    id integer NOT NULL,
++    duration character varying(20) NOT NULL,
++    custom_days integer DEFAULT 1,
++    updated_at timestamp without time zone DEFAULT now(),
++    CONSTRAINT prayer_request_duration_duration_check CHECK (((duration)::text = ANY ((ARRAY['daily'::character varying, 'weekly'::character varying, 'monthly'::character varying, 'custom'::character varying])::text[])))
++);
++
++
++--
++-- Name: prayer_request_duration_id_seq; Type: SEQUENCE; Schema: public; Owner: -
++--
++
++CREATE SEQUENCE public.prayer_request_duration_id_seq
++    AS integer
++    START WITH 1
++    INCREMENT BY 1
++    NO MINVALUE
++    NO MAXVALUE
++    CACHE 1;
++
++
++--
++-- Name: prayer_request_duration_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
++--
++
++ALTER SEQUENCE public.prayer_request_duration_id_seq OWNED BY public.prayer_request_duration.id;
++
++
++--
++-- Name: prayer_requests; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.prayer_requests (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid,
++    type text NOT NULL,
++    name text,
++    mother_or_father_name text,
++    purpose text,
++    custom_verse text,
++    status text DEFAULT 'active'::text,
++    prayer_count integer DEFAULT 0,
++    is_second_request boolean DEFAULT false,
++    created_at timestamp without time zone DEFAULT now(),
++    expires_at timestamp without time zone,
++    quranic_verse text,
++    CONSTRAINT prayer_requests_status_check CHECK ((status = ANY (ARRAY['active'::text, 'completed'::text, 'expired'::text]))),
++    CONSTRAINT prayer_requests_type_check CHECK ((type = ANY (ARRAY['personal'::text, 'friend'::text, 'deceased'::text, 'sick'::text])))
++);
++
++
++--
++-- Name: prayers; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.prayers (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid,
++    request_id uuid,
++    prayed_at timestamp without time zone DEFAULT now(),
++    prayer_type character varying(20) DEFAULT 'general'::character varying
++);
++
++
++--
++-- Name: COLUMN prayers.prayer_type; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON COLUMN public.prayers.prayer_type IS '??? ??????: deceased, sick, friend, personal, collective';
++
++
++--
++-- Name: today_active_users; Type: MATERIALIZED VIEW; Schema: public; Owner: -
++--
++
++CREATE MATERIALIZED VIEW public.today_active_users AS
++ SELECT u.id,
++    u.full_name,
++    COALESCE(us.interaction_rate, (0)::numeric) AS interaction_rate,
++    count(p.id) AS prayers_today,
++    max(p.prayed_at) AS last_prayer_at
++   FROM ((public.users u
++     LEFT JOIN public.user_stats us ON ((u.id = us.user_id)))
++     LEFT JOIN public.prayers p ON (((u.id = p.user_id) AND (p.prayed_at >= CURRENT_DATE))))
++  WHERE (u.full_name IS NOT NULL)
++  GROUP BY u.id, u.full_name, us.interaction_rate
++ HAVING (count(p.id) > 0)
++  WITH NO DATA;
++
++
++--
++-- Name: user_achievements; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.user_achievements (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid NOT NULL,
++    achievement_type character varying(50) NOT NULL,
++    granted_at timestamp with time zone DEFAULT now(),
++    expires_at timestamp with time zone,
++    is_active boolean DEFAULT true,
++    created_at timestamp with time zone DEFAULT now(),
++    updated_at timestamp with time zone DEFAULT now()
++);
++
++
++--
++-- Name: user_points; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.user_points (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid NOT NULL,
++    total_points integer DEFAULT 0,
++    prayer_points integer DEFAULT 0,
++    activity_points integer DEFAULT 0,
++    bonus_points integer DEFAULT 0,
++    rank integer,
++    rank_in_level integer,
++    created_at timestamp without time zone DEFAULT now(),
++    updated_at timestamp without time zone DEFAULT now(),
++    last_calculated timestamp without time zone DEFAULT now()
++);
++
++
++--
++-- Name: TABLE user_points; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON TABLE public.user_points IS '???? ?????????? ?????? ???????';
++
++
++--
++-- Name: win_history; Type: TABLE; Schema: public; Owner: -
++--
++
++CREATE TABLE public.win_history (
++    id uuid DEFAULT gen_random_uuid() NOT NULL,
++    user_id uuid NOT NULL,
++    win_type character varying(50) NOT NULL,
++    achievement_type character varying(50),
++    stars_earned integer DEFAULT 0,
++    points_at_win integer DEFAULT 0,
++    rank_at_win integer,
++    cooldown_level integer DEFAULT 1,
++    can_win_again_at timestamp without time zone,
++    granted_by character varying(50) DEFAULT 'system'::character varying,
++    admin_id uuid,
++    won_at timestamp without time zone DEFAULT now(),
++    expires_at timestamp without time zone
++);
++
++
++--
++-- Name: TABLE win_history; Type: COMMENT; Schema: public; Owner: -
++--
++
++COMMENT ON TABLE public.win_history IS '??? ??? ?? ?????? ????? Cooldown';
++
++
++--
++-- Name: about_us id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.about_us ALTER COLUMN id SET DEFAULT nextval('public.about_us_id_seq'::regclass);
++
++
++--
++-- Name: admin_users id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.admin_users ALTER COLUMN id SET DEFAULT nextval('public.admin_users_id_seq'::regclass);
++
++
++--
++-- Name: awareness id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.awareness ALTER COLUMN id SET DEFAULT nextval('public.awareness_id_seq'::regclass);
++
++
++--
++-- Name: badge_audit_log id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.badge_audit_log ALTER COLUMN id SET DEFAULT nextval('public.badge_audit_log_id_seq'::regclass);
++
++
++--
++-- Name: badge_notifications id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.badge_notifications ALTER COLUMN id SET DEFAULT nextval('public.badge_notifications_id_seq'::regclass);
++
++
++--
++-- Name: banner id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.banner ALTER COLUMN id SET DEFAULT nextval('public.banner_id_seq'::regclass);
++
++
++--
++-- Name: collective_prayer id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer ALTER COLUMN id SET DEFAULT nextval('public.collective_prayer_id_seq'::regclass);
++
++
++--
++-- Name: collective_prayer_participants id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer_participants ALTER COLUMN id SET DEFAULT nextval('public.collective_prayer_participants_id_seq'::regclass);
++
++
++--
++-- Name: daily_stats id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.daily_stats ALTER COLUMN id SET DEFAULT nextval('public.daily_stats_id_seq'::regclass);
++
++
++--
++-- Name: fingerprint_settings id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.fingerprint_settings ALTER COLUMN id SET DEFAULT nextval('public.fingerprint_settings_id_seq'::regclass);
++
++
++--
++-- Name: level_ratios id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.level_ratios ALTER COLUMN id SET DEFAULT nextval('public.level_ratios_id_seq'::regclass);
++
++
++--
++-- Name: library id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.library ALTER COLUMN id SET DEFAULT nextval('public.library_id_seq'::regclass);
++
++
++--
++-- Name: library_requests id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.library_requests ALTER COLUMN id SET DEFAULT nextval('public.library_requests_id_seq'::regclass);
++
++
++--
++-- Name: lottery_runs id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.lottery_runs ALTER COLUMN id SET DEFAULT nextval('public.lottery_runs_id_seq'::regclass);
++
++
++--
++-- Name: notification_settings id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.notification_settings ALTER COLUMN id SET DEFAULT nextval('public.notification_settings_id_seq'::regclass);
++
++
++--
++-- Name: platform_settings id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.platform_settings ALTER COLUMN id SET DEFAULT nextval('public.platform_settings_id_seq'::regclass);
++
++
++--
++-- Name: prayer_request_duration id; Type: DEFAULT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayer_request_duration ALTER COLUMN id SET DEFAULT nextval('public.prayer_request_duration_id_seq'::regclass);
++
++
++--
++-- Name: about_us about_us_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.about_us
++    ADD CONSTRAINT about_us_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: achievement_settings achievement_settings_feature_name_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.achievement_settings
++    ADD CONSTRAINT achievement_settings_feature_name_key UNIQUE (feature_name);
++
++
++--
++-- Name: achievement_settings achievement_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.achievement_settings
++    ADD CONSTRAINT achievement_settings_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: achievements achievements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.achievements
++    ADD CONSTRAINT achievements_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: admin_settings admin_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.admin_settings
++    ADD CONSTRAINT admin_settings_pkey PRIMARY KEY (setting_key);
++
++
++--
++-- Name: admin_users admin_users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.admin_users
++    ADD CONSTRAINT admin_users_email_key UNIQUE (email);
++
++
++--
++-- Name: admin_users admin_users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.admin_users
++    ADD CONSTRAINT admin_users_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: awareness awareness_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.awareness
++    ADD CONSTRAINT awareness_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: badge_audit_log badge_audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.badge_audit_log
++    ADD CONSTRAINT badge_audit_log_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: badge_notifications badge_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.badge_notifications
++    ADD CONSTRAINT badge_notifications_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: banner banner_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.banner
++    ADD CONSTRAINT banner_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: collective_prayer_participants collective_prayer_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer_participants
++    ADD CONSTRAINT collective_prayer_participants_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: collective_prayer_participants collective_prayer_participants_user_id_prayer_id_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer_participants
++    ADD CONSTRAINT collective_prayer_participants_user_id_prayer_id_key UNIQUE (user_id, prayer_id);
++
++
++--
++-- Name: collective_prayer collective_prayer_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer
++    ADD CONSTRAINT collective_prayer_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: contact_messages contact_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.contact_messages
++    ADD CONSTRAINT contact_messages_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: daily_stats daily_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.daily_stats
++    ADD CONSTRAINT daily_stats_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: daily_stats daily_stats_stat_date_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.daily_stats
++    ADD CONSTRAINT daily_stats_stat_date_key UNIQUE (stat_date);
++
++
++--
++-- Name: fingerprint_settings fingerprint_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.fingerprint_settings
++    ADD CONSTRAINT fingerprint_settings_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: level_ratios level_ratios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.level_ratios
++    ADD CONSTRAINT level_ratios_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: library library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.library
++    ADD CONSTRAINT library_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: library_requests library_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.library_requests
++    ADD CONSTRAINT library_requests_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: lottery_history lottery_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.lottery_history
++    ADD CONSTRAINT lottery_history_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: lottery_runs lottery_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.lottery_runs
++    ADD CONSTRAINT lottery_runs_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: lottery_runs lottery_runs_run_date_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.lottery_runs
++    ADD CONSTRAINT lottery_runs_run_date_key UNIQUE (run_date);
++
++
++--
++-- Name: notification_settings notification_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.notification_settings
++    ADD CONSTRAINT notification_settings_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.notifications
++    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: platform_settings platform_settings_key_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.platform_settings
++    ADD CONSTRAINT platform_settings_key_key UNIQUE (key);
++
++
++--
++-- Name: platform_settings platform_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.platform_settings
++    ADD CONSTRAINT platform_settings_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: prayer_request_duration prayer_request_duration_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayer_request_duration
++    ADD CONSTRAINT prayer_request_duration_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: prayer_requests prayer_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayer_requests
++    ADD CONSTRAINT prayer_requests_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: prayers prayers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayers
++    ADD CONSTRAINT prayers_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: selected_verses selected_verses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.selected_verses
++    ADD CONSTRAINT selected_verses_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: user_achievements user_achievements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_achievements
++    ADD CONSTRAINT user_achievements_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: user_points user_points_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_points
++    ADD CONSTRAINT user_points_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: user_points user_points_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_points
++    ADD CONSTRAINT user_points_user_id_key UNIQUE (user_id);
++
++
++--
++-- Name: user_stats user_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_stats
++    ADD CONSTRAINT user_stats_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: user_stats user_stats_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_stats
++    ADD CONSTRAINT user_stats_user_id_key UNIQUE (user_id);
++
++
++--
++-- Name: users users_device_fingerprint_key; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.users
++    ADD CONSTRAINT users_device_fingerprint_key UNIQUE (device_fingerprint);
++
++
++--
++-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.users
++    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: win_history win_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.win_history
++    ADD CONSTRAINT win_history_pkey PRIMARY KEY (id);
++
++
++--
++-- Name: idx_achievements_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_achievements_active ON public.achievements USING btree (is_active) WHERE (is_active = true);
++
++
++--
++-- Name: idx_achievements_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_achievements_date ON public.achievements USING btree (achieved_at DESC);
++
++
++--
++-- Name: idx_achievements_expires; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_achievements_expires ON public.achievements USING btree (expires_at);
++
++
++--
++-- Name: idx_achievements_type; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_achievements_type ON public.achievements USING btree (achievement_type);
++
++
++--
++-- Name: idx_achievements_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_achievements_user ON public.achievements USING btree (user_id);
++
++
++--
++-- Name: idx_achievements_user_id; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_achievements_user_id ON public.achievements USING btree (user_id);
++
++
++--
++-- Name: idx_admin_settings_key; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_admin_settings_key ON public.admin_settings USING btree (setting_key);
++
++
++--
++-- Name: idx_admin_users_email; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_admin_users_email ON public.admin_users USING btree (email);
++
++
++--
++-- Name: idx_admin_users_role; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_admin_users_role ON public.admin_users USING btree (role);
++
++
++--
++-- Name: idx_awareness_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_awareness_active ON public.awareness USING btree (is_active, created_at DESC);
++
++
++--
++-- Name: idx_badge_audit_event; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_badge_audit_event ON public.badge_audit_log USING btree (event_type, created_at DESC);
++
++
++--
++-- Name: idx_badge_audit_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_badge_audit_user ON public.badge_audit_log USING btree (user_id, created_at DESC);
++
++
++--
++-- Name: idx_badge_notif_lookup; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_badge_notif_lookup ON public.badge_notifications USING btree (user_id, notification_type, badge_level);
++
++
++--
++-- Name: idx_badge_notif_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_badge_notif_user ON public.badge_notifications USING btree (user_id, notification_type, sent_at DESC);
++
++
++--
++-- Name: idx_banner_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_banner_active ON public.banner USING btree (is_active, created_at DESC);
++
++
++--
++-- Name: idx_collective_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_collective_active ON public.collective_prayer USING btree (is_active, created_at DESC);
++
++
++--
++-- Name: idx_daily_stats_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_daily_stats_date ON public.daily_stats USING btree (stat_date DESC);
++
++
++--
++-- Name: idx_library_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_library_active ON public.library USING btree (is_active);
++
++
++--
++-- Name: idx_library_category; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_library_category ON public.library USING btree (category);
++
++
++--
++-- Name: idx_library_created; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_library_created ON public.library USING btree (created_at DESC);
++
++
++--
++-- Name: idx_library_order; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_library_order ON public.library USING btree (display_order);
++
++
++--
++-- Name: idx_lottery_history_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_lottery_history_date ON public.lottery_history USING btree (lottery_date DESC);
++
++
++--
++-- Name: idx_lottery_history_type; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_lottery_history_type ON public.lottery_history USING btree (lottery_type);
++
++
++--
++-- Name: idx_lottery_runs_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_lottery_runs_date ON public.lottery_runs USING btree (run_date DESC);
++
++
++--
++-- Name: idx_messages_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_messages_date ON public.contact_messages USING btree (created_at DESC);
++
++
++--
++-- Name: idx_messages_read; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_messages_read ON public.contact_messages USING btree (is_read);
++
++
++--
++-- Name: idx_notifications_created; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_notifications_created ON public.notifications USING btree (created_at DESC);
++
++
++--
++-- Name: idx_notifications_type; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_notifications_type ON public.notifications USING btree (type);
++
++
++--
++-- Name: idx_notifications_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_notifications_user ON public.notifications USING btree (user_id);
++
++
++--
++-- Name: idx_notifications_user_created; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_notifications_user_created ON public.notifications USING btree (user_id, created_at DESC);
++
++
++--
++-- Name: idx_notifications_user_read; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_notifications_user_read ON public.notifications USING btree (user_id, read) WHERE (read = false);
++
++
++--
++-- Name: idx_platform_settings_key; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_platform_settings_key ON public.platform_settings USING btree (key);
++
++
++--
++-- Name: idx_prayer_requests_quranic_verse; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayer_requests_quranic_verse ON public.prayer_requests USING btree (quranic_verse) WHERE (quranic_verse IS NOT NULL);
++
++
++--
++-- Name: idx_prayer_requests_status_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayer_requests_status_date ON public.prayer_requests USING btree (status, created_at DESC) WHERE (status <> 'answered'::text);
++
++
++--
++-- Name: idx_prayer_requests_user_status; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayer_requests_user_status ON public.prayer_requests USING btree (user_id, status, created_at DESC);
++
++
++--
++-- Name: idx_prayers_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayers_date ON public.prayers USING btree (prayed_at DESC);
++
++
++--
++-- Name: idx_prayers_request; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayers_request ON public.prayers USING btree (request_id);
++
++
++--
++-- Name: idx_prayers_type; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayers_type ON public.prayers USING btree (prayer_type);
++
++
++--
++-- Name: idx_prayers_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayers_user ON public.prayers USING btree (user_id);
++
++
++--
++-- Name: idx_prayers_user_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_prayers_user_date ON public.prayers USING btree (user_id, prayed_at DESC);
++
++
++--
++-- Name: idx_requests_created; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_requests_created ON public.prayer_requests USING btree (created_at DESC);
++
++
++--
++-- Name: idx_requests_email; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_requests_email ON public.library_requests USING btree (requester_email);
++
++
++--
++-- Name: idx_requests_status; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_requests_status ON public.prayer_requests USING btree (status);
++
++
++--
++-- Name: idx_requests_type; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_requests_type ON public.prayer_requests USING btree (type);
++
++
++--
++-- Name: idx_requests_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_requests_user ON public.prayer_requests USING btree (user_id);
++
++
++--
++-- Name: idx_selected_verses_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_selected_verses_active ON public.selected_verses USING btree (is_active, expires_at);
++
++
++--
++-- Name: idx_selected_verses_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_selected_verses_user ON public.selected_verses USING btree (user_id);
++
++
++--
++-- Name: idx_stats_level; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_stats_level ON public.user_stats USING btree (current_level DESC);
++
++
++--
++-- Name: idx_stats_rate; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_stats_rate ON public.user_stats USING btree (interaction_rate DESC);
++
++
++--
++-- Name: idx_stats_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_stats_user ON public.user_stats USING btree (user_id);
++
++
++--
++-- Name: idx_user_achievements_active; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_achievements_active ON public.user_achievements USING btree (user_id, is_active, expires_at);
++
++
++--
++-- Name: idx_user_achievements_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_achievements_user ON public.user_achievements USING btree (user_id);
++
++
++--
++-- Name: idx_user_points_rank; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_points_rank ON public.user_points USING btree (rank);
++
++
++--
++-- Name: idx_user_points_total; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_points_total ON public.user_points USING btree (total_points DESC);
++
++
++--
++-- Name: idx_user_points_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_points_user ON public.user_points USING btree (user_id);
++
++
++--
++-- Name: idx_user_stats_notifications; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_stats_notifications ON public.user_stats USING btree (total_notifications_received DESC);
++
++
++--
++-- Name: idx_user_stats_prayers_given; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_stats_prayers_given ON public.user_stats USING btree (total_prayers_given DESC);
++
++
++--
++-- Name: idx_user_stats_verification; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_user_stats_verification ON public.user_stats USING btree (verification_status, interaction_rate DESC);
++
++
++--
++-- Name: idx_users_created; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_users_created ON public.users USING btree (created_at DESC);
++
++
++--
++-- Name: idx_users_fingerprint; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_users_fingerprint ON public.users USING btree (device_fingerprint);
++
++
++--
++-- Name: idx_users_last_achievement; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_users_last_achievement ON public.users USING btree (last_achievement_date DESC);
++
++
++--
++-- Name: idx_users_level; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_users_level ON public.users USING btree (level);
++
++
++--
++-- Name: idx_users_mock_data; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_users_mock_data ON public.users USING btree (is_mock_data) WHERE (is_mock_data = true);
++
++
++--
++-- Name: idx_users_phone; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_users_phone ON public.users USING btree (phone_number);
++
++
++--
++-- Name: idx_verification_status; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_verification_status ON public.user_stats USING btree (verification_status);
++
++
++--
++-- Name: idx_win_history_cooldown; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_win_history_cooldown ON public.win_history USING btree (can_win_again_at);
++
++
++--
++-- Name: idx_win_history_date; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_win_history_date ON public.win_history USING btree (won_at DESC);
++
++
++--
++-- Name: idx_win_history_user; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_win_history_user ON public.win_history USING btree (user_id);
++
++
++--
++-- Name: user_stats badge_change_trigger; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER badge_change_trigger AFTER UPDATE ON public.user_stats FOR EACH ROW EXECUTE FUNCTION public.log_badge_change();
++
++
++--
++-- Name: users trigger_update_user_level; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER trigger_update_user_level AFTER INSERT OR UPDATE OF full_name, mother_or_father_name, phone_number ON public.users FOR EACH ROW EXECUTE FUNCTION public.update_user_level();
++
++
++--
++-- Name: about_us update_about_us_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_about_us_updated_at BEFORE UPDATE ON public.about_us FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: admin_settings update_admin_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_admin_settings_updated_at BEFORE UPDATE ON public.admin_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: awareness update_awareness_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_awareness_updated_at BEFORE UPDATE ON public.awareness FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: banner update_banner_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_banner_updated_at BEFORE UPDATE ON public.banner FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: collective_prayer update_collective_prayer_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_collective_prayer_updated_at BEFORE UPDATE ON public.collective_prayer FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: fingerprint_settings update_fingerprint_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_fingerprint_settings_updated_at BEFORE UPDATE ON public.fingerprint_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: level_ratios update_level_ratios_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_level_ratios_updated_at BEFORE UPDATE ON public.level_ratios FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: notification_settings update_notification_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_notification_settings_updated_at BEFORE UPDATE ON public.notification_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: prayer_request_duration update_prayer_duration_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_prayer_duration_updated_at BEFORE UPDATE ON public.prayer_request_duration FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: prayers update_streak_on_prayer; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_streak_on_prayer AFTER INSERT ON public.prayers FOR EACH ROW EXECUTE FUNCTION public.update_daily_streak();
++
++
++--
++-- Name: users update_users_updated_at; Type: TRIGGER; Schema: public; Owner: -
++--
++
++CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
++
++
++--
++-- Name: achievement_settings achievement_settings_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.achievement_settings
++    ADD CONSTRAINT achievement_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: achievements achievements_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.achievements
++    ADD CONSTRAINT achievements_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: admin_users admin_users_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.admin_users
++    ADD CONSTRAINT admin_users_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admin_users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: admin_users admin_users_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.admin_users
++    ADD CONSTRAINT admin_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: badge_audit_log badge_audit_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.badge_audit_log
++    ADD CONSTRAINT badge_audit_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: badge_notifications badge_notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.badge_notifications
++    ADD CONSTRAINT badge_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: collective_prayer_participants collective_prayer_participants_prayer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer_participants
++    ADD CONSTRAINT collective_prayer_participants_prayer_id_fkey FOREIGN KEY (prayer_id) REFERENCES public.collective_prayer(id);
++
++
++--
++-- Name: collective_prayer_participants collective_prayer_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.collective_prayer_participants
++    ADD CONSTRAINT collective_prayer_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
++
++
++--
++-- Name: library_requests library_requests_published_book_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.library_requests
++    ADD CONSTRAINT library_requests_published_book_id_fkey FOREIGN KEY (published_book_id) REFERENCES public.library(id) ON DELETE SET NULL;
++
++
++--
++-- Name: library_requests library_requests_reviewed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.library_requests
++    ADD CONSTRAINT library_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.admin_users(id);
++
++
++--
++-- Name: lottery_history lottery_history_admin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.lottery_history
++    ADD CONSTRAINT lottery_history_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.notifications
++    ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: platform_settings platform_settings_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.platform_settings
++    ADD CONSTRAINT platform_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.admin_users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: prayer_requests prayer_requests_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayer_requests
++    ADD CONSTRAINT prayer_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: prayers prayers_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayers
++    ADD CONSTRAINT prayers_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.prayer_requests(id) ON DELETE CASCADE;
++
++
++--
++-- Name: prayers prayers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.prayers
++    ADD CONSTRAINT prayers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: selected_verses selected_verses_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.selected_verses
++    ADD CONSTRAINT selected_verses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: user_achievements user_achievements_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_achievements
++    ADD CONSTRAINT user_achievements_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: user_points user_points_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_points
++    ADD CONSTRAINT user_points_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: user_stats user_stats_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.user_stats
++    ADD CONSTRAINT user_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: win_history win_history_admin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.win_history
++    ADD CONSTRAINT win_history_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.users(id) ON DELETE SET NULL;
++
++
++--
++-- Name: win_history win_history_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
++--
++
++ALTER TABLE ONLY public.win_history
++    ADD CONSTRAINT win_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
++
++
++--
++-- Name: FUNCTION calculate_interaction_rate(usr_id uuid); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.calculate_interaction_rate(usr_id uuid) TO dua_user;
++
++
++--
++-- Name: FUNCTION check_badge_status(usr_id uuid); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.check_badge_status(usr_id uuid) TO dua_user;
++
++
++--
++-- Name: FUNCTION check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.check_if_notification_sent(usr_id uuid, notif_type character varying, badge_lvl character varying) TO dua_user;
++
++
++--
++-- Name: FUNCTION increment_prayer_count(req_id uuid); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.increment_prayer_count(req_id uuid) TO dua_user;
++
++
++--
++-- Name: FUNCTION update_badge_statuses(); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.update_badge_statuses() TO dua_user;
++
++
++--
++-- Name: FUNCTION update_updated_at_column(); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.update_updated_at_column() TO dua_user;
++
++
++--
++-- Name: FUNCTION update_user_stats(usr_id uuid); Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON FUNCTION public.update_user_stats(usr_id uuid) TO dua_user;
++
++
++--
++-- Name: TABLE badge_notifications; Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON TABLE public.badge_notifications TO dua_user;
++
++
++--
++-- Name: SEQUENCE badge_notifications_id_seq; Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON SEQUENCE public.badge_notifications_id_seq TO dua_user;
++
++
++--
++-- Name: TABLE notifications; Type: ACL; Schema: public; Owner: -
++--
++
++GRANT ALL ON TABLE public.notifications TO dua_user;
++
++
++--
++-- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: -
++--
++
++ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO dua_user;
++
++
++--
++-- Name: DEFAULT PRIVILEGES FOR FUNCTIONS; Type: DEFAULT ACL; Schema: public; Owner: -
++--
++
++ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO dua_user;
++
++
++--
++-- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: -
++--
++
++ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO dua_user;
++
++
++--
++-- PostgreSQL database dump complete
++--
++
++\unrestrict G7fCkwMkFa1iHVGgtLrZPakizZbf5AwplLKbsY7mcVnm5hiI2tDViXPFcOZwAgg
++

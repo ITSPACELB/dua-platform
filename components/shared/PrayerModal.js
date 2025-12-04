@@ -133,7 +133,7 @@ export default function PrayerModal({
         return (
           <>
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسمك <span className="text-red-500">*</span>
               </label>
               <input
@@ -143,13 +143,13 @@ export default function PrayerModal({
                 onChange={(e) => handleChange('name', e.target.value)}
                 placeholder="أدخل اسمك"
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم الأب أو اسم الأم (اختياري)
               </label>
               <input
@@ -157,7 +157,7 @@ export default function PrayerModal({
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
                 placeholder="اسم والدك أو والدتك"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
@@ -166,14 +166,14 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الغرض من الدعاء <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.purpose}
                 onChange={(e) => handleChange('purpose', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 bg-white"
                 dir="rtl"
               >
                 <option value="">اختر الغرض...</option>
@@ -204,18 +204,18 @@ export default function PrayerModal({
     <div className="flex items-center gap-3 mb-4">
       <span className="text-2xl">👑</span>
       <div>
-        <h4 className="text-lg font-bold text-purple-900">آية قرآنية مخصصة</h4>
+        <h4 className="text-base sm:text-lg font-bold text-purple-900">آية قرآنية مخصصة</h4>
         <p className="text-sm text-purple-700">ميزة خاصة للمستخدمين المميزين</p>
       </div>
     </div>
     
-    <label className="block text-lg font-semibold text-purple-800 mb-2">
+    <label className="block text-base sm:text-lg font-semibold text-purple-800 mb-2">
       اختر آية قرآنية (اختياري)
     </label>
     <select
       value={formData.customVerse}
       onChange={(e) => handleChange('customVerse', e.target.value)}
-      className="w-full h-14 px-4 border-2 border-purple-300 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white"
+      className="w-full h-12 sm:h-14 px-4 border-2 border-purple-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-500 bg-white"
       dir="rtl"
     >
       <option value="">-- اختر آية مناسبة --</option>
@@ -261,7 +261,7 @@ export default function PrayerModal({
 )}
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 رقم الهاتف (اختياري)
               </label>
               <PhoneInput
@@ -282,7 +282,7 @@ export default function PrayerModal({
         return (
           <>
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم صديقك <span className="text-red-500">*</span>
               </label>
               <input
@@ -292,13 +292,13 @@ export default function PrayerModal({
                 onChange={(e) => handleChange('name', e.target.value)}
                 placeholder="أدخل اسم صديقك"
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم الأب أو اسم الأم (اختياري)
               </label>
               <input
@@ -306,7 +306,7 @@ export default function PrayerModal({
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
                 placeholder="اسم والده أو والدته"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
@@ -315,14 +315,14 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الغرض من الدعاء <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.purpose}
                 onChange={(e) => handleChange('purpose', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 bg-white"
                 dir="rtl"
               >
                 <option value="">اختر الغرض...</option>
@@ -348,7 +348,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 رقم الهاتف (اختياري)
               </label>
               <PhoneInput
@@ -369,7 +369,7 @@ export default function PrayerModal({
         return (
           <>
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الاسم (اختياري)
               </label>
               <input
@@ -378,7 +378,7 @@ export default function PrayerModal({
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 placeholder="أدخل اسمك"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-stone-600 mt-1">
@@ -387,7 +387,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم الأب أو اسم الأم (اختياري)
               </label>
               <input
@@ -395,7 +395,7 @@ export default function PrayerModal({
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
                 placeholder="اسم والدك أو والدتك"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
@@ -404,14 +404,14 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الغرض من الدعاء <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.purpose}
                 onChange={(e) => handleChange('purpose', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 bg-white"
                 dir="rtl"
               >
                 <option value="">اختر الغرض...</option>
@@ -437,7 +437,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 رقم الهاتف (اختياري)
               </label>
               <PhoneInput
@@ -455,7 +455,7 @@ export default function PrayerModal({
         return (
           <>
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم المريض (اختياري)
               </label>
               <input
@@ -464,7 +464,7 @@ export default function PrayerModal({
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 placeholder="أدخل اسم المريض"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-stone-600 mt-1">
@@ -473,7 +473,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم الأب أو اسم الأم (اختياري)
               </label>
               <input
@@ -481,7 +481,7 @@ export default function PrayerModal({
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
                 placeholder="اسم والده أو والدته"
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
@@ -490,14 +490,14 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الغرض من الدعاء <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.purpose}
                 onChange={(e) => handleChange('purpose', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 bg-white"
                 dir="rtl"
               >
                 <option value="">اختر الغرض...</option>
@@ -509,7 +509,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 رقم الهاتف (اختياري)
               </label>
               <PhoneInput
@@ -527,7 +527,7 @@ export default function PrayerModal({
         return (
           <>
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم المتوفى <span className="text-red-500">*</span>
               </label>
               <input
@@ -537,13 +537,13 @@ export default function PrayerModal({
                 onChange={(e) => handleChange('name', e.target.value)}
                 placeholder="أدخل اسم المتوفى"
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 اسم الأب أو اسم الأم <span className="text-red-500">*</span>
               </label>
               <input
@@ -552,7 +552,7 @@ export default function PrayerModal({
                 onChange={(e) => handleChange('parentName', e.target.value)}
                 placeholder="اسم والده أو والدته"
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
@@ -561,14 +561,14 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الغرض من الدعاء <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.purpose}
                 onChange={(e) => handleChange('purpose', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 bg-white"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 bg-white"
                 dir="rtl"
               >
                 <option value="">اختر الغرض...</option>
@@ -582,14 +582,14 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 صلة القرابة <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.relation}
                 onChange={(e) => handleChange('relation', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all bg-white"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all bg-white"
                 dir="rtl"
               >
                 <option value="">اختر صلة القرابة</option>
@@ -608,7 +608,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 رقم الهاتف (اختياري)
               </label>
               <PhoneInput
@@ -635,7 +635,7 @@ export default function PrayerModal({
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 التاريخ <span className="text-red-500">*</span>
               </label>
               <input
@@ -645,13 +645,13 @@ export default function PrayerModal({
                 onChange={(e) => handleChange('date', e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 الوقت <span className="text-red-500">*</span>
               </label>
               <input
@@ -659,14 +659,14 @@ export default function PrayerModal({
                 value={formData.time}
                 onChange={(e) => handleChange('time', e.target.value)}
                 required
-                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="ltr"
                 style={{ textAlign: 'left' }}
               />
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-stone-800 mb-2">
+              <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
                 النية (اختياري - لن تظهر للعامة)
               </label>
               <textarea
@@ -674,7 +674,7 @@ export default function PrayerModal({
                 onChange={(e) => handleChange('intention', e.target.value)}
                 placeholder="اكتب نيتك الخاصة للدعاء..."
                 rows="4"
-                className="w-full px-4 py-3 border-2 border-stone-300 rounded-xl text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all resize-none"
+                className="w-full px-4 py-3 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all resize-none"
                 dir="rtl"
               />
               <p className="text-sm text-stone-600 mt-1">
@@ -741,13 +741,13 @@ export default function PrayerModal({
       {/* النافذة المنبثقة */}
       <div
         ref={modalRef}
-        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-slide-down overflow-hidden"
+        className="w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl animate-slide-down overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* الرأس */}
-        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-8 text-white">
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-4 sm:p-6 md:p-8 text-white">
           <div className="flex items-start justify-between mb-4">
-            <h2 className="text-3xl font-bold">
+            <h2 className="text-2xl sm:text-3xl font-bold">
               {type === 'personal' && '🤲 دعاء شخصي'}
               {type === 'friend' && '❤️ دعاء لصديق'}
               {type === 'general' && '🤲 اطلب دعاء'}
@@ -767,20 +767,20 @@ export default function PrayerModal({
           
           {/* الاقتباس القرآني */}
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <p className="text-xl font-semibold mb-1">{quote.text}</p>
+            <p className="text-base sm:text-lg sm:text-xl font-semibold mb-1">{quote.text}</p>
             <p className="text-sm text-white/80">{quote.source}</p>
           </div>
         </div>
 
         {/* المحتوى */}
-        <div className="p-8 max-h-[60vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 md:p-8 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto">
           <div className="space-y-6">
             {renderFormContent()}
           </div>
         </div>
 
         {/* الأزرار */}
-        <div className="p-8 bg-stone-50 border-t-2 border-stone-200">
+        <div className="p-4 sm:p-6 md:p-8 bg-stone-50 border-t-2 border-stone-200">
           {type === 'collective' ? (
             <button
               onClick={() => handleSubmit(true)}

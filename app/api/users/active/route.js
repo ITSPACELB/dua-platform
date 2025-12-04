@@ -14,7 +14,7 @@ export async function GET(request) {
         COUNT(p.id) as prayers_today
       FROM users u
       INNER JOIN prayers p ON p.user_id = u.id
-      WHERE u.is_mock_data = true
+      WHERE u.is_mock_data = false
         AND DATE(p.prayed_at) = CURRENT_DATE
       GROUP BY u.id, u.full_name, u.level
       HAVING COUNT(p.id) > 0
