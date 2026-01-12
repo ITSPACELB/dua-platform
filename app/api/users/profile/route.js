@@ -37,6 +37,7 @@ export async function GET(request) {
         age,
         country,
         level,
+        share_code,
         created_at
       FROM users
       WHERE id = $1`,
@@ -76,6 +77,53 @@ export async function GET(request) {
       daily_streak: 0
     };
 
+    // ═══════════════════════════════════════════════════════════
+    // 🤲 إحصائيات طلبات الدعاء المُستلمة
+    // ═══════════════════════════════════════════════════════════
+    
+    const prayersReceivedResult = await client.query(
+      `SELECT 
+        COUNT(DISTINCT pr.id) as total_requests,
+        COALESCE(SUM(pr.prayer_count), 0) as total_prayers_received,
+        COUNT(DISTINCT p.user_id) as unique_people_prayed
+      FROM prayer_requests pr
+      LEFT JOIN prayers p ON pr.id = p.request_id
+      WHERE pr.user_id = $1`,
+      [userId]
+    );
+
+    const prayersReceived = prayersReceivedResult.rows[0] || {
+      total_requests: 0,
+      total_prayers_received: 0,
+      unique_people_prayed: 0
+    };
+
+    const requestsByTypeResult = await client.query(
+      `SELECT pr.type, COUNT(pr.id) as requests_count,
+        COALESCE(SUM(pr.prayer_count), 0) as prayers_received
+      FROM prayer_requests pr
+      WHERE pr.user_id = $1
+      GROUP BY pr.type`,
+      [userId]
+    );
+
+    const requestsByType = {
+      personal: { count: 0, prayers: 0 },
+      friend: { count: 0, prayers: 0 },
+      deceased: { count: 0, prayers: 0 },
+      sick: { count: 0, prayers: 0 }
+    };
+
+    requestsByTypeResult.rows.forEach(row => {
+      if (requestsByType[row.type]) {
+        requestsByType[row.type] = {
+          count: parseInt(row.requests_count) || 0,
+          prayers: parseInt(row.prayers_received) || 0
+        };
+      }
+    });
+
+
     const profile = {
       id: user.id,
       phoneNumber: user.phone_number,
@@ -86,13 +134,18 @@ export async function GET(request) {
       country: user.country,
       createdAt: user.created_at,
       level: user.level || 1,
+      shareCode: user.share_code || null,
       totalPrayers: parseInt(stats.total_prayers) || 0,
       totalStars: parseInt(stats.total_stars) || 0,
       prayersToday: parseInt(stats.prayers_today) || 0,
       prayersWeek: parseInt(stats.prayers_week) || 0,
       prayersMonth: parseInt(stats.prayers_month) || 0,
       interactionRate: parseFloat(stats.interaction_rate) || 0,
-      dailyStreak: parseInt(stats.daily_streak) || 0
+      dailyStreak: parseInt(stats.daily_streak) || 0,
+      totalRequests: parseInt(prayersReceived.total_requests) || 0,
+      prayersReceived: parseInt(prayersReceived.total_prayers_received) || 0,
+      uniquePeoplePrayed: parseInt(prayersReceived.unique_people_prayed) || 0,
+      requestsByType: requestsByType
     };
 
     return NextResponse.json({
@@ -189,7 +242,7 @@ export async function PUT(request) {
     // Phone validation
     let validatedPhone = null;
     if (phoneNumber && phoneNumber.trim().length > 0) {
-      const phoneRegex = /^\+[1-9]\d{1,14}$/;
+      const phoneRegex = /^\+[1-9]\d{1,20}$/;
       if (!phoneRegex.test(phoneNumber)) {
         return NextResponse.json(
           { 
@@ -264,6 +317,7 @@ export async function PUT(request) {
          age,
          country,
          level,
+        share_code,
          created_at`,
       [
         fullName.trim(),

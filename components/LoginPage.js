@@ -72,13 +72,13 @@ export default function LoginPage({ onLogin, onSwitchToRegister }) {
 
           <div>
             <label className="block text-stone-700 font-medium mb-2 text-sm">
-              اسم الأم
+              الشهرة أو اسم الوالد
             </label>
             <input
               type="text"
               value={formData.motherName}
               onChange={(e) => setFormData({...formData, motherName: e.target.value})}
-              placeholder="فاطمة"
+              placeholder="الشهرة أو اسم الوالد"
               className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
               required
             />

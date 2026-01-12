@@ -1,41 +1,67 @@
 import './globals.css'
 import Script from 'next/script'
+import InstallPrompt from '@/components/shared/InstallPrompt'
 
 // ============================================================================
 // 📱 Metadata الأساسية
 // ============================================================================
 export const metadata = {
+  metadataBase: new URL('https://yojeeb.com'),
   title: {
-    default: 'يُجيب - منصة الدعاء الجماعي',
+    default: 'يُجيب - منصة الدعاء الجماعي | من ابتكار حيدر الغافقي',
     template: '%s | يُجيب'
   },
-  description: 'منصة إسلامية تجمع المؤمنين من كل أنحاء العالم للدعاء المشترك. "وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ"',
+  description: 'يُجيب - منصة تجمع قلوب الناس على الدعاء. ﴿وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ﴾ نسأل الله أن يُجيب الدعاء لكم جميعاً ولمن تحبون.',
   keywords: [
-    'دعاء',
-    'دعاء جماعي',
-    'دعاء مستجاب',
-    'الدعاء المستجاب',
-    'منصة دعاء',
-    'دعاء إسلامي',
-    'استجابة الدعاء',
-    'قوة الدعاء',
-    'دعاء للمريض',
-    'دعاء للميت',
-    'دعاء للرزق',
-    'دعاء للفرج',
-    'آيات قرآنية',
-    'أدعية مستجابة',
-    'الدعاء الجماعي',
-    'منصة إسلامية'
+    // أساسيات قوية
+    'دعاء', 'دعاء مستجاب', 'ادعية مستجابة', 'دعاء جماعي', 'الدعاء الجماعي',
+    'منصة دعاء', 'منصة إسلامية', 'تطبيق إسلامي', 'دعاء اون لاين', 'يُجيب',
+    // دعاء حسب الحاجة
+    'دعاء للمريض', 'دعاء للميت', 'دعاء للمتوفي', 'دعاء للرزق', 'دعاء للفرج',
+    'دعاء للشفاء', 'دعاء للزواج', 'دعاء للنجاح', 'دعاء للوالدين', 'دعاء لقضاء الحاجة',
+    'دعاء للمهموم', 'دعاء للمكروب',
+    // تفاعلية
+    'طلبات دعاء', 'طلب دعاء', 'شارك دعائك', 'ادعوا لي', 'دعاء مشترك',
+    // إسلامية عامة
+    'آيات قرآنية', 'استجابة الدعاء', 'فضل الدعاء', 'قوة الدعاء', 'أدعية إسلامية',
+    // عائلة الغافقي
+    'الغافقي', 'الغافقي',
+    'حيدر الغافقي', 'حيدر جعفر الغافقي',
+    'محمد الغافقي', 'محمد جعفر الغافقي',
+    'جعفر الغافقي', 'جعفر جواد الغافقي',
+    'حمزة الغافقي', 'حمزة جعفر الغافقي',
+    'فاطمة الغافقي', 'فاطمة جعفر الغافقي',
+    'زيد الغافقي', 'زيد محمد الغافقي',
+    'ديما الغافقي', 'ديما محمد الغافقي',
+    'ديمة الغافقي', 'ديمة محمد الغافقي',
+    'نهاية اللامي', 'نهاية عاشور اللامي'
   ],
   authors: [{ name: 'الغافقي' }],
-  creator: 'الغافقي',
-  publisher: 'منصة يُجيب',
+  creator: 'حيدر الغافقي',
+  publisher: 'الغافقي',
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
+  
+  // ============================================================================
+  // 🔗 Canonical URL
+  // ============================================================================
+  alternates: {
+    canonical: 'https://yojeeb.com',
+  },
+
+  // ============================================================================
+  // 📱 Viewport Optimization
+  // ============================================================================
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  },
+
   manifest: '/manifest.json',
   
   // ============================================================================
@@ -74,10 +100,10 @@ export const metadata = {
   openGraph: {
     type: 'website',
     locale: 'ar_IQ',
-    url: 'https://yourdomain.com',
+    url: 'https://yojeeb.com',
     siteName: 'يُجيب - منصة الدعاء الجماعي',
-    title: 'يُجيب - منصة الدعاء الجماعي',
-    description: 'منصة إسلامية تجمع المؤمنين للدعاء المشترك - "وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ"',
+    title: 'يُجيب - منصة الدعاء الجماعي | من ابتكار حيدر الغافقي',
+    description: 'يُجيب - منصة تجمع قلوب الناس على الدعاء. ﴿وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ﴾ نسأل الله أن يُجيب الدعاء لكم جميعاً ولمن تحبون.',
     images: [
       {
         url: '/og-image.png',
@@ -93,10 +119,10 @@ export const metadata = {
   // ============================================================================
   twitter: {
     card: 'summary_large_image',
-    title: 'يُجيب - منصة الدعاء الجماعي',
-    description: 'منصة إسلامية تجمع المؤمنين للدعاء المشترك',
+    title: 'يُجيب - منصة الدعاء الجماعي | من ابتكار حيدر الغافقي',
+    description: 'يُجيب - منصة تجمع قلوب الناس على الدعاء. ﴿وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ﴾ نسأل الله أن يُجيب الدعاء لكم جميعاً ولمن تحبون.',
     images: ['/og-image.png'],
-    creator: '@alghafiqi',
+    creator: 'حيدر الغافقي',
   },
   
   // ============================================================================
@@ -179,12 +205,80 @@ export default function RootLayout({ children }) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="يُجيب" />
+        <meta name="apple-mobile-web-app-title" content="Yojeeb" />
         
         {/* ============================================================================ */}
         {/* 🎨 Theme Color */}
         {/* ============================================================================ */}
         <meta name="theme-color" content="#16a34a" />
+
+        {/* Schema.org Structured Data - JSON-LD */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              "name": "يُجيب",
+              "alternateName": "منصة الدعاء الجماعي",
+              "url": "https://yojeeb.com",
+              "description": "منصة دعاء تجمع الناس من كل أنحاء العالم للدعاء المشترك",
+              "applicationCategory": "LifestyleApplication",
+              "operatingSystem": "All",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              },
+              "creator": {
+                "@type": "Organization",
+                "name": "الغافقي",
+                "url": "https://yojeeb.com",
+                "member": [
+                  {"@type": "Person", "name": "حيدر جعفر الغافقي"},
+                  {"@type": "Person", "name": "محمد جعفر الغافقي"},
+                  {"@type": "Person", "name": "جعفر جواد الغافقي"},
+                  {"@type": "Person", "name": "حمزة جعفر الغافقي"},
+                  {"@type": "Person", "name": "فاطمة جعفر الغافقي"},
+                  {"@type": "Person", "name": "زيد محمد الغافقي"},
+                  {"@type": "Person", "name": "ديما محمد الغافقي"},
+                  {"@type": "Person", "name": "ديمة محمد الغافقي"},
+                  {"@type": "Person", "name": "نهاية عاشور اللامي"}
+                ]
+              },
+              "inLanguage": "ar",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://yojeeb.com/?q={search_term_string}",
+                "query-input": "required name=search_term_string"
+              },
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "5.0",
+                "ratingCount": "1000",
+                "bestRating": "5",
+                "worstRating": "1"
+              }
+            })
+          }}
+        />
+
+        {/* Organization Schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "الغافقي",
+              "url": "https://yojeeb.com",
+              "logo": "https://yojeeb.com/icon-512.png",
+              "sameAs": [],
+              "foundingDate": "2024"
+            })
+          }}
+        />
+
         <meta name="msapplication-TileColor" content="#16a34a" />
         <meta name="msapplication-navbutton-color" content="#16a34a" />
         
@@ -198,8 +292,8 @@ export default function RootLayout({ children }) {
               '@context': 'https://schema.org',
               '@type': 'WebSite',
               name: 'يُجيب - منصة الدعاء الجماعي',
-              description: 'منصة إسلامية تجمع المؤمنين من كل أنحاء العالم للدعاء المشترك',
-              url: 'https://yourdomain.com',
+              description: 'منصة دعاء تجمع الناس من كل أنحاء العالم للدعاء المشترك',
+              url: 'https://yojeeb.com',
               inLanguage: 'ar',
               potentialAction: {
                 '@type': 'SearchAction',
@@ -233,7 +327,7 @@ export default function RootLayout({ children }) {
               '@type': 'Organization',
               name: 'منصة يُجيب',
               description: 'منصة الدعاء الجماعي',
-              url: 'https://yourdomain.com',
+              url: 'https://yojeeb.com',
               logo: 'https://yourdomain.com/icon-512.png',
               foundingDate: '2025',
               sameAs: [
@@ -249,6 +343,7 @@ export default function RootLayout({ children }) {
         style={{ fontFamily: "'Markazi Text', serif" }}
       >
         {children}
+        <InstallPrompt />
         
         {/* ============================================================================ */}
         {/* 🔔 OneSignal SDK - المرحلة 8 */}

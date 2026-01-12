@@ -53,8 +53,8 @@ import { getVerseText } from '@/lib/utils';
 const quranVerses = {
   // آية رئيسية للصفحة
   main: {
-    text: 'وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ',
-    subtitle: 'الله قريب... يسمعك الآن'
+    text: 'وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ',
+    subtitle: ''
   },
   
   // آيات لكل نوع دعاء
@@ -95,6 +95,7 @@ export default function DuaPlatform() {
   const [showPrayerForm, setShowPrayerForm] = useState(false);
   const [selectedPrayerType, setSelectedPrayerType] = useState('personal');
   const [currentPage, setCurrentPage] = useState('home');
+  const [prayerPageInitialTab, setPrayerPageInitialTab] = useState('all');
   const [user, setUser] = useState(null);
   const [awarenessSettings, setAwarenessSettings] = useState(null);
   
@@ -119,7 +120,21 @@ export default function DuaPlatform() {
 
 // تحميل بيانات المستخدم
 useEffect(() => {
-  const userData = localStorage.getItem('user');
+  // 🚀 Smart Lazy Migration: auto-migrates & cleans user_data → user
+  const userData = (() => {
+    let user = localStorage.getItem('user');
+    if (!user) {
+      const old = localStorage.getItem('user_data');
+      if (old) {
+        try {
+          localStorage.setItem('user', old);
+          user = old;
+          localStorage.removeItem('user_data'); // تنظيف تلقائي
+        } catch (e) { /* silent fail */ }
+      }
+    }
+    return user;
+  })();
   if (userData) {
     setUser(JSON.parse(userData));
   }
@@ -141,7 +156,7 @@ useEffect(() => {
 // دالة تسجيل الخروج
 const handleLogout = () => {
   localStorage.removeItem('user');
-  localStorage.removeItem('token');
+  localStorage.removeItem('auth_token');
   setUser(null);
   setCurrentPage('home');
   window.location.reload();
@@ -172,17 +187,32 @@ const handleLogout = () => {
   const [stats, setStats] = useState({
     believersCount: 0,
     todayPrayers: 0,
-    activeRequests: 0
+    activeRequests: 0,
+    prayersReceived: 0,
+    uniquePeoplePrayed: 0
   });
   const [banner, setBanner] = useState(null);
   const [topActiveUsers, setTopActiveUsers] = useState([]);
   const [collectivePrayer, setCollectivePrayer] = useState(null);
   const [awareness, setAwareness] = useState(null);
   const [prayerRequests, setPrayerRequests] = useState([]);
+  const [myActiveRequests, setMyActiveRequests] = useState([]);
+  const [showMyRequests, setShowMyRequests] = useState(false);
+  const [userShareCode, setUserShareCode] = useState(null);
+  const [userFullName, setUserFullName] = useState(null);
   const [userStats, setUserStats] = useState(null);
   const [activeVerse, setActiveVerse] = useState(null);
   const [loadingVerse, setLoadingVerse] = useState(false);
   const [allowedPrayers, setAllowedPrayers] = useState(1);
+  // 📝 التسجيل السريع من خانة طلباتي النشطة
+  const [quickRegName, setQuickRegName] = useState("");
+  const [quickRegParent, setQuickRegParent] = useState("");
+  const [quickRegLoading, setQuickRegLoading] = useState(false);
+  // ============================================================================
+  // 📲 PWA Install
+  // ============================================================================
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isIOS, setIsIOS] = useState(false);
 
 
   
@@ -194,11 +224,32 @@ const handleLogout = () => {
   const generateFingerprint = () => {
     return getOrCreateFingerprint();
   };
+  // ============================================================================
+  // 📲 PWA Install - الاستماع لحدث التثبيت
+  // ============================================================================
+  useEffect(() => {
+    // اكتشاف iOS
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(iOS);
+
+    // الاستماع لحدث beforeinstallprompt
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
 
   // ============================================================================
   // ⏱️ شاشة السلام عليكم الافتتاحية
   // ============================================================================
   useEffect(() => {
+  loadPlatformSettings();
+      fetchMyActiveRequests(); // Load settings immediately
     const timer = setTimeout(() => {
       setShowWelcome(false);
     }, 2500);
@@ -213,6 +264,7 @@ const handleLogout = () => {
     if (!showWelcome) {
       loadData();
       loadPlatformSettings();
+      fetchMyActiveRequests();
       // ❌ معطل مؤقتاً - يسبب 403 error
       // checkFingerprintSettings();
       
@@ -232,6 +284,7 @@ const handleLogout = () => {
     
     const interval = setInterval(() => {
       loadPlatformSettings();
+      fetchMyActiveRequests();
     }, 60000); // كل 60 ثانية
 
     return () => clearInterval(interval);
@@ -241,24 +294,20 @@ const handleLogout = () => {
   // جلب الآية المختارة النشطة
 useEffect(() => {
   if (!showWelcome) {
-    loadActiveVerse();
   }
 }, [showWelcome]);
 
-const loadActiveVerse = async () => {
-  setLoadingVerse(true);
-  try {
-    const response = await fetch('/api/achievements?action=getActiveVerse');
-    if (response.ok) {
-      const data = await response.json();
-      setActiveVerse(data.verse);
-    }
-  } catch (error) {
-    console.error('Error loading verse:', error);
-  } finally {
-    setLoadingVerse(false);
-  }
-};
+  // ════════════════════════════════════════════════════════
+  // 🔄 تحديث تلقائي لخانة طلباتي النشطة كل 30 ثانية
+  // ════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (showWelcome) return;
+    const myReqInterval = setInterval(() => {
+      fetchMyActiveRequests();
+    }, 30000);
+    return () => clearInterval(myReqInterval);
+  }, [showWelcome]);
+
   
   // ============================================================================
   // 🔔 تهيئة OneSignal (المرحلة 8 - جديد)
@@ -328,6 +377,33 @@ const loadActiveVerse = async () => {
   // ============================================================================
   // 📬 تحميل الإشعارات (المرحلة 8 - جديد)
   // ============================================================================
+
+  // ============================================================================
+  // 📲 PWA Install - دالة التثبيت
+  // ============================================================================
+  const handleInstallPWA = async () => {
+    if (isIOS) {
+      alert('للتثبيت على iPhone/iPad:\n\n1. اضغط على زر المشاركة ⬆️\n2. اختر "أضف إلى الشاشة الرئيسية"\n3. اضغط "إضافة"');
+      return;
+    }
+
+    if (!deferredPrompt) {
+      alert('التطبيق مثبت بالفعل أو غير متاح للتثبيت حالياً');
+      return;
+    }
+
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        console.log('✅ تم تثبيت التطبيق بنجاح');
+      }
+      setDeferredPrompt(null);
+    } catch (error) {
+      console.error('❌ خطأ في التثبيت:', error);
+    }
+  };
+
   const loadNotifications = async () => {
     try {
       const response = await fetch('/api/notifications', {
@@ -395,7 +471,7 @@ const loadActiveVerse = async () => {
     try {
       // جلب الإحصائيات والإعدادات
       // ✅ FIXED: إضافة Token إذا كان موجوداً
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const headers = {
         'x-device-fingerprint': generateFingerprint()
       };
@@ -412,8 +488,43 @@ const loadActiveVerse = async () => {
           setStats({
             believersCount: data.stats.believersCount || 0,
             todayPrayers: data.stats.todayPrayersCount || 0,        // ✅ FIX: كان todayPrayers
-            activeRequests: data.stats.activeRequestsCount || 0     // ✅ FIX: كان activeRequests
+            activeRequests: data.stats.activeRequestsCount || 0,    // ✅ FIX: كان activeRequests
+            prayersReceived: 0,       // سيتم تحديثها من profile
+            uniquePeoplePrayed: 0     // سيتم تحديثها من profile
           });
+          
+          // ✅ جلب إحصائيات الدعوات الشخصية من profile
+          const userDataStr = localStorage.getItem('user');
+          if (userDataStr) {
+            try {
+              const userData = JSON.parse(userDataStr);
+              const usrId = userData.id || localStorage.getItem('user_id');
+              if (usrId) {
+                const profileRes = await fetch('/api/users/profile', {
+                  headers: { 'x-user-id': usrId }
+                });
+                if (profileRes.ok) {
+                  const profileData = await profileRes.json();
+                  if (profileData.profile) {
+                    setStats(prev => ({
+                      ...prev,
+                      prayersReceived: profileData.profile.prayersReceived || 0,
+                      uniquePeoplePrayed: profileData.profile.uniquePeoplePrayed || 0
+                    }));
+                    // حفظ share_code للمشاركة
+                    if (profileData.profile.shareCode) {
+                      setUserShareCode(profileData.profile.shareCode);
+                    }
+                    if (profileData.profile.fullName) {
+                      setUserFullName(profileData.profile.fullName);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing user data:', e);
+            }
+          }
           
           if (data.stats.banner) setBanner(data.stats.banner);
           // ✅ إصلاح: إضافة حفظ التوعية
@@ -437,7 +548,12 @@ const loadActiveVerse = async () => {
       if (requestsResponse.ok) {
         const requestsData = await requestsResponse.json();
         if (requestsData.requests) {
-          setPrayerRequests(requestsData.requests);
+          const filteredRequests = requestsData.requests.filter(r => {
+            const isOwnRequest = user?.id && r.user_id === user.id;
+            const alreadyPrayed = r.hasPrayed;
+            return !isOwnRequest && !alreadyPrayed;
+          });
+          setPrayerRequests(filteredRequests);
         }
       }
     } catch (error) {
@@ -446,35 +562,100 @@ const loadActiveVerse = async () => {
   };
 
   // ============================================================================
+  // 📋 جلب طلباتي النشطة (للخانة المنسدلة)
+  // ============================================================================
+  const fetchMyActiveRequests = async () => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (!userStr) return;
+      const userData = JSON.parse(userStr);
+      if (!userData?.id) return;
+      
+      const response = await fetch("/api/users/my-prayer-requests", {
+        headers: {
+          "x-user-id": userData.id,
+          "x-device-fingerprint": generateFingerprint()
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.myRequests) {
+          // فلترة الطلبات النشطة فقط
+          const activeOnly = data.myRequests.filter(r => r.status === "active" && r.expiresAt && new Date(r.expiresAt) > new Date());
+          setMyActiveRequests(activeOnly);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching my requests:", error);
+    }
+  };
+
+
+  // ============================================================================
+  // 📝 التسجيل السريع من خانة طلباتي النشطة
+  // ============================================================================
+  const handleQuickRegister = async () => {
+    if (!quickRegName.trim() || !quickRegParent.trim()) return;
+    setQuickRegLoading(true);
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fingerprint: generateFingerprint(),
+          full_name: quickRegName.trim(),
+          mother_or_father_name: quickRegParent.trim()
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          localStorage.setItem("user", JSON.stringify(data.user));
+          setUser(data.user);
+          setUserShareCode(data.user.share_code);
+          setUserFullName(data.user.full_name);
+          setQuickRegName("");
+          setQuickRegParent("");
+          setToastMessage({ message: "تم التسجيل بنجاح! 🎉", type: "success" });
+          loadData();
+        }
+      }
+    } catch (error) {
+      console.error("Quick register error:", error);
+      setToastMessage({ message: "حدث خطأ، حاول مرة أخرى", type: "error" });
+    }
+    setQuickRegLoading(false);
+  };
+  // ============================================================================
 // ⚙️ تحميل إعدادات المنصة الشاملة
   // ============================================================================
   const loadPlatformSettings = async () => {
     try {
-      const response = await fetch('/api/public/settings');
+      const response = await fetch('/api/settings');
       if (response.ok) {
         const data = await response.json();
         
-        if (data.success && data.settings) {
-          // تحويل array إلى object
-          const settingsObj = {};
-          data.settings.forEach((setting, index) => {
-            // التعرف على نوع الإعداد من المحتوى
-            const value = setting.value || setting;
-            
-            if (value?.links && value?.content) {
-              settingsObj.awareness = value;
-            } else if (value?.text && value?.backgroundColor) {
-              settingsObj.banner = value;
-            } else if (value?.verseText || value?.type === 'verse') {
-              settingsObj.collectivePrayer = value;
-            } else if (value?.pushEnabled !== undefined) {
-              settingsObj.notifications = value;
-            } else if (value?.home !== undefined) {
-              settingsObj.tabsVisibility = value;
-            } else if (value?.mode && value?.displayCount) {
-              settingsObj.topActive = value;
-            }
-          });
+        if (data.success) {
+          // API returns direct object structure
+          const settingsObj = {
+            banner: data.banner ? {
+              isActive: data.banner.active,
+              text: data.banner.text,
+              backgroundColor: data.banner.backgroundColor,
+              textColor: data.banner.textColor,
+              link: data.banner.link
+            } : null,
+            awareness: data.awareness ? {
+              isActive: data.awareness.active,
+              content: data.awareness.text,
+              links: data.awareness.link
+            } : null,
+            collectivePrayer: data.collectivePrayer || null,
+            tabsVisibility: data.tabsVisibility || { home: true, requests: true, stats: true, profile: true }
+          };
+
+          // Update platform settings state
           
           // ════════════════════════════════════════════════════════
           // ✅ جلب الدعاء الجماعي مباشرة من API (مستقل عن platform_settings)
@@ -513,13 +694,12 @@ const loadActiveVerse = async () => {
             };
           }
          
-          setPlatformSettings(prev => ({
-            ...prev,
+          setPlatformSettings({
             ...settingsObj
-          }));
+          });
 
           // تحديث عدد الدعوات المسموح بها
-          if (user) {
+          if (user && user.id) {
             try {
               const achievementsRes = await fetch(`/api/achievements?userId=${user.id}`);
               if (achievementsRes.ok) {
@@ -628,6 +808,57 @@ const loadActiveVerse = async () => {
   };
 
   // ============================================================================
+
+  // ════════════════════════════════════════════════════════════
+  // 📤 دالة مشاركة رابط الأدعية
+  // ════════════════════════════════════════════════════════════
+  const handleSharePrayerLink = async () => {
+    if (!userShareCode) {
+      alert("لا يوجد رابط مشاركة متاح");
+      return;
+    }
+    
+    const shareUrl = `https://yojeeb.com/pray/${userShareCode}`;
+    // الحصول على الاسم الأول فقط
+    const firstName = userFullName?.split(' ')[0] || '';
+    const shareText = firstName 
+      ? `${firstName} بحاجة لدعائك 🤲`
+      : "ادعُ لي - شارك معي الدعاء 🤲";
+    
+    // محاولة استخدام Web Share API
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "ادعُ لي | يُجيب",
+          text: shareText,
+          url: shareUrl
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          // المستخدم ألغى المشاركة - لا نعرض خطأ
+          copyToClipboard(shareUrl);
+        }
+      }
+    } else {
+      // fallback: نسخ الرابط
+      copyToClipboard(shareUrl);
+    }
+  };
+  
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("✅ تم نسخ الرابط!");
+    }).catch(() => {
+      // fallback للأجهزة القديمة
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      alert("✅ تم نسخ الرابط!");
+    });
+  };
   // 🔍 التحقق من الحد اليومي للدعاء
   // ============================================================================
   const checkPrayerLimit = async () => {
@@ -678,7 +909,7 @@ const prayForRequest = async (requestId) => {
     });
 
     if (response.ok) {
-      const randomMessage = encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)];
+      const randomMessage = 'تقبّل الله، وحقق لك ما تتمنى إن شاء الله 🤲';
       setToastMessage({
         message: randomMessage,
         type: 'success'
@@ -735,7 +966,7 @@ try {
 
       if (response.ok) {
         setToastMessage({
-          message: '✅ تم إرسال طلبك بنجاح!\nالمؤمنون يدعون لك الآن',
+          message: 'تم إرسال طلبك، نسأل الله أن يُجيب دعوتك 🤲',
           type: 'success'
         });
         setShowPrayerForm(false);
@@ -800,7 +1031,7 @@ try {
 }
 
   if (currentPage === 'prayer-requests') {
-    return <PrayerRequestsPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} />;
+    return <PrayerRequestsPage user={user} currentPage={currentPage} onNavigate={setCurrentPage} initialTab={prayerPageInitialTab} onTabReset={() => setPrayerPageInitialTab("all")} />;
   }
 
   // ============================================================================
@@ -812,9 +1043,6 @@ try {
         <div className="text-center animate-pulse">
           <div className="text-white text-8xl mb-6 font-bold" style={{ fontFamily: 'Markazi Text, serif' }}>
             السلام عليكم
-          </div>
-          <div className="text-white text-3xl" style={{ fontFamily: 'Markazi Text, serif' }}>
-            ورحمة الله وبركاته
           </div>
         </div>
       </div>
@@ -1028,12 +1256,12 @@ try {
         )}
 
         {/* الإحصائيات */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-white rounded-xl p-4 text-center shadow-md">
             <div className="text-3xl mb-2">👥</div>
             {/* ✅ إصلاح: إضافة default value */}
             <p className="text-2xl font-bold text-emerald-700">{(stats.believersCount || 0).toLocaleString()}</p>
-            <p className="text-sm text-stone-600">مؤمن</p>
+            <p className="text-sm text-stone-600">مستخدم</p>
           </div>
           <div className="bg-white rounded-xl p-4 text-center shadow-md">
             <div className="text-3xl mb-2">🤲</div>
@@ -1044,135 +1272,10 @@ try {
           <div className="bg-white rounded-xl p-4 text-center shadow-md">
             <div className="text-3xl mb-2">📋</div>
             {/* ✅ إصلاح: إضافة default value */}
-            <p className="text-2xl font-bold text-purple-700">{(stats.activeRequests || 0)}</p>
+            <p className="text-2xl font-bold text-purple-700">{prayerRequests.filter(r => !r.hasPrayed).length}</p>
             <p className="text-sm text-stone-600">طلب نشط</p>
           </div>
         </div>
-
-{/* ✅ الفائزان بالقرعة اليومية */}
-{topActiveUsers && topActiveUsers.length >= 2 && (
-  <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-900/50 dark:to-stone-900/50 rounded-2xl p-8 mb-6 shadow-lg border border-stone-200 dark:border-stone-700">
-    
-    {/* العنوان */}
-    <div className="text-center mb-8">
-      <div className="inline-flex items-center gap-3 mb-2">
-        <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
-        <h2 className="text-2xl font-bold text-stone-800 dark:text-stone-100">
-          الفائزان بالقرعة اليومية
-        </h2>
-        <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
-      </div>
-      <p className="text-sm text-stone-600 dark:text-stone-400">
-        مبارك لهم! سيظهر اسمهم في الصفحة الرئيسية لمدة 24 ساعة
-      </p>
-    </div>
-
-    {/* الفائزان */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {topActiveUsers.slice(0, 2).map((winner, index) => {
-        const badge = createVerificationLevel(
-          winner.level === 3 ? 98 : winner.level === 2 ? 85 : 80,
-          'active',
-          0
-        );
-
-        return (
-          <div 
-            key={winner.id || index}
-            className="relative bg-white dark:bg-stone-800 rounded-xl p-6 shadow-md hover:shadow-xl transition-all duration-300 border border-stone-200 dark:border-stone-700"
-          >
-            {/* شريط علوي */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 rounded-t-xl"></div>
-            
-            {/* رقم الترتيب */}
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full shadow-lg">
-              <span className="text-white text-sm font-bold flex items-center gap-1">
-                {index === 0 ? '🥇' : '🥈'} الفائز {index === 0 ? 'الأول' : 'الثاني'}
-              </span>
-            </div>
-
-            {/* المحتوى */}
-            <div className="mt-4">
-              {/* معلومات الفائز */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/30 flex items-center justify-center border-2 border-amber-200 dark:border-amber-800">
-                  <span className="text-3xl">{index === 0 ? '👑' : '🏆'}</span>
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xl font-bold text-stone-800 dark:text-stone-100">
-                      {winner.name || 'فائز'}
-                    </p>
-                    {badge && (
-                      <VerificationBadge 
-                        level={badge} 
-                        size="md"
-                        showTooltip={true}
-                      />
-                    )}
-                  </div>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">
-                    عضو متميز في المنصة
-                  </p>
-                </div>
-              </div>
-
-              {/* الإحصائيات */}
-              <div className="bg-stone-50 dark:bg-stone-900/50 rounded-lg p-4 border border-stone-200 dark:border-stone-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                      <span className="text-xl">🤲</span>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                        {winner.prayerCount || 0}
-                      </p>
-                      <p className="text-xs text-stone-500 dark:text-stone-400">
-                        دعاء اليوم
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="text-right">
-                    <div className="inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-semibold">
-                      <span>✓</span>
-                      <span>مؤهل للعرض</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* المكافأة */}
-              <div className="mt-4 flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
-                <span className="text-lg">🎁</span>
-                <span>عرض الاسم في الصفحة الرئيسية لمدة 24 ساعة</span>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-
-    {/* رسالة تحفيزية */}
-    <div className="mt-8 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-xl p-5 border-2 border-dashed border-amber-200 dark:border-amber-800">
-      <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-          <span className="text-2xl">💫</span>
-        </div>
-        <div className="flex-1">
-          <p className="font-bold text-amber-800 dark:text-amber-300 text-lg mb-1">
-            تريد أن يظهر اسمك هنا؟
-          </p>
-          <p className="text-stone-700 dark:text-stone-300 text-sm leading-relaxed">
-            ادعُ لـ 3 طلبات على الأقل بإخلاص وادخل القرعة اليومية تلقائياً
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
 
 {/* 📖 الفائز باختيار الآية - يظهر فقط عند وجود فائز */}
 {activeVerse && !loadingVerse && activeVerse.verse_text && activeVerse.winner_name && (
@@ -1352,7 +1455,7 @@ try {
                 setShowPrayerForm(true);
                 // ✅ FIXED: مسح الحقول عند تغيير النوع
               }}
-              className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
+              className="bg-gradient-to-br from-amber-500 to-amber-600 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-amber-600 hover:to-amber-700 transition-all"
             >
               <div className="text-4xl mb-2">🤲</div>
               دعاء شخصي
@@ -1390,7 +1493,7 @@ try {
                 setShowPrayerForm(true);
                 // ✅ FIXED: مسح الحقول عند تغيير النوع
               }}
-              className="bg-gradient-to-br from-red-600 to-red-700 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-red-700 hover:to-red-800 transition-all"
+              className="bg-gradient-to-br from-teal-500 to-teal-600 text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:from-teal-600 hover:to-teal-700 transition-all"
             >
               <div className="text-4xl mb-2">💊</div>
               لمريض
@@ -1426,6 +1529,7 @@ try {
           });
           // تحديث فوري
           await loadPlatformSettings();
+      fetchMyActiveRequests();
         } else {
           const errorData = await response.json();
           setToastMessage({
@@ -1478,7 +1582,7 @@ try {
 
                 if (response.ok) {
                   setToastMessage({
-                    message: '✅ تم إرسال طلبك بنجاح!\nالمؤمنون يدعون لك الآن',
+                    message: 'تم إرسال طلبك، نسأل الله أن يُجيب دعوتك 🤲',
                     type: 'success'
                   });
                   setShowPrayerForm(false);
@@ -1501,6 +1605,150 @@ try {
           />
         </div>
         
+
+{/* ═══════════════════════════════════════════════════════════ */}
+{/* 📋 طلباتي النشطة - خانة منسدلة */}
+{/* ═══════════════════════════════════════════════════════════ */}
+<div className="mb-6">
+  <button
+    onClick={() => setShowMyRequests(!showMyRequests)}
+    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-4 flex items-center justify-between shadow-lg hover:from-purple-600 hover:to-purple-700 transition-all"
+  >
+    <div className="flex items-center gap-3">
+      <span className="text-2xl">📋</span>
+      <span className="text-xl font-bold">طلباتي النشطة</span>
+      {user && myActiveRequests.length > 0 && (
+        <span className="bg-white/20 px-3 py-1 rounded-full text-lg">{myActiveRequests.length}</span>
+      )}
+    </div>
+    <span className={`text-2xl transition-transform ${showMyRequests ? "rotate-180" : ""}`}>⌄</span>
+  </button>
+
+  {showMyRequests && (
+    <div className="mt-2 bg-purple-50 rounded-xl p-4 border-2 border-purple-200 space-y-3 animate-in slide-in-from-top duration-200">
+      
+      {/* 🔐 حالة 1: المستخدم غير مسجل */}
+      {!user && (
+        <div className="bg-white rounded-xl p-5 text-center">
+          <div className="text-4xl mb-3">✨</div>
+          <h4 className="text-lg font-bold text-purple-800 mb-3">سجّل اسمك لتتمكن من:</h4>
+          <ul className="text-stone-600 text-sm mb-4 space-y-2 text-right">
+            <li className="flex items-center gap-2 justify-end">
+              <span>متابعة تقدم طلبات دعائك</span>
+              <span className="text-purple-500">📊</span>
+            </li>
+            <li className="flex items-center gap-2 justify-end">
+              <span>مشاهدة إحصائياتك</span>
+              <span className="text-purple-500">📈</span>
+            </li>
+            <li className="flex items-center gap-2 justify-end">
+              <span>مشاركة طلباتك مع الآخرين</span>
+              <span className="text-purple-500">📤</span>
+            </li>
+          </ul>
+          <input
+            type="text"
+            placeholder="اسمك الكامل"
+            value={quickRegName}
+            onChange={(e) => setQuickRegName(e.target.value)}
+            className="w-full p-3 border-2 border-purple-200 rounded-xl mb-2 text-right focus:border-purple-500 focus:outline-none transition-colors"
+          />
+          <input
+            type="text"
+            placeholder="الشهرة أو اسم الوالد"
+            value={quickRegParent}
+            onChange={(e) => setQuickRegParent(e.target.value)}
+            className="w-full p-3 border-2 border-purple-200 rounded-xl mb-4 text-right focus:border-purple-500 focus:outline-none transition-colors"
+          />
+          <button
+            onClick={handleQuickRegister}
+            disabled={quickRegLoading || !quickRegName.trim() || !quickRegParent.trim()}
+            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+          >
+            {quickRegLoading ? "جاري التسجيل..." : "🤲 سجّل الآن"}
+          </button>
+        </div>
+      )}
+
+      {/* 📭 حالة 2: مسجل لكن بدون طلبات نشطة */}
+      {user && myActiveRequests.length === 0 && (
+        <div className="bg-white rounded-xl p-5 text-center">
+          <div className="text-4xl mb-3">🤲</div>
+          <p className="text-stone-600 mb-4">لا توجد طلبات نشطة حالياً</p>
+          <button
+            onClick={() => setShowPrayerForm(true)}
+            className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md"
+          >
+            🤲 أضف طلب دعاء جديد
+          </button>
+          {/* 📤 زر مشاركة الأدعية */}
+          {userShareCode && (
+            <button
+              onClick={handleSharePrayerLink}
+              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all mt-3"
+            >
+              <span className="text-xl">📤</span>
+              <span>شارك أدعيتك ليدعموك بالدعاء</span>
+            </button>
+          )}
+          <button
+            onClick={() => { setPrayerPageInitialTab("mine"); setCurrentPage("prayer-requests"); }}
+            className="w-full text-purple-600 hover:text-purple-700 font-bold py-2 text-center mt-3"
+          >
+            📁 أرشيف طلباتي
+          </button>
+        </div>
+      )}
+
+      {/* ✅ حالة 3: مسجل وعنده طلبات نشطة */}
+      {user && myActiveRequests.length > 0 && (
+        <>
+          {myActiveRequests.map((req) => {
+            const hoursRemaining = req.expiresAt ? Math.max(0, Math.round((new Date(req.expiresAt) - new Date()) / 3600000)) : 0;
+            const typeColors = { personal: "bg-amber-500", friend: "bg-blue-500", deceased: "bg-stone-500", sick: "bg-teal-500" };
+            const typeIcons = { personal: "👤", friend: "👥", deceased: "🕊️", sick: "🏥" };
+            return (
+              <div key={req.id} className="bg-white rounded-lg p-3 shadow-sm flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`${typeColors[req.type] || "bg-gray-500"} text-white w-10 h-10 rounded-full flex items-center justify-center text-lg`}>
+                    {typeIcons[req.type] || "🤲"}
+                  </span>
+                  <div>
+                    <p className="font-bold text-stone-800">{req.name}</p>
+                    <p className="text-sm text-stone-500">✨ {req.prayerCount || 0} دعوة</p>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <p className={`text-sm font-bold ${hoursRemaining < 6 ? "text-red-500" : "text-purple-600"}`}>
+                    ⏰ {hoursRemaining} ساعة
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          
+          {/* 📤 زر مشاركة الأدعية */}
+          {userShareCode && (
+            <button
+              onClick={handleSharePrayerLink}
+              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all"
+            >
+              <span className="text-xl">📤</span>
+              <span>شارك أدعيتك ليدعموك بالدعاء</span>
+            </button>
+          )}
+          
+          <button
+            onClick={() => { setPrayerPageInitialTab("mine"); setCurrentPage("prayer-requests"); }}
+            className="w-full text-purple-600 hover:text-purple-700 font-bold py-2 text-center"
+          >
+            📁 أرشيف طلباتي
+          </button>
+        </>
+      )}
+    </div>
+  )}
+</div>
 {/* طلبات الدعاء */}
         {prayerRequests.length > 0 && (
           <div className="mb-8">
@@ -1524,7 +1772,7 @@ try {
         ...request,
         displayName: request.name,
         timestamp: request.created_at,
-        prayerCount: request.prayer_count,
+        prayerCount: request.prayerCount || request.prayer_count,
         motherName: request.parent_name,
         purpose: request.purpose,
         quranic_verse: request.quranic_verse  // ✅ تم التصحيح: quranicVerse → quranic_verse
@@ -1576,6 +1824,130 @@ try {
         )}
 
         {/* ✅ التعديل 6: الأكثر تفاعلاً - في الأسفل قبل Footer */}
+{/* ✅ السابقون */}
+{topActiveUsers && topActiveUsers.length >= 2 && (
+  <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-900/50 dark:to-stone-900/50 rounded-2xl p-8 mb-6 shadow-lg border border-stone-200 dark:border-stone-700">
+    
+    {/* العنوان */}
+    <div className="text-center mb-8">
+      <div className="inline-flex items-center gap-3 mb-2">
+        <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
+        <h2 className="text-2xl font-bold text-stone-800 dark:text-stone-100">
+          السابقون
+        </h2>
+        <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
+      </div>
+      <p className="text-sm text-stone-600 dark:text-stone-400">
+        ماشاء الله! الأكثر دعاءً حتى الآن - القائمة تتحدث تلقائياً
+      </p>
+    </div>
+
+    {/* الفائزان */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {topActiveUsers.slice(0, 2).map((winner, index) => {
+        const badge = createVerificationLevel(
+          winner.level === 3 ? 98 : winner.level === 2 ? 85 : 80,
+          'active',
+          0
+        );
+
+        return (
+          <div 
+            key={winner.id || index}
+            className="relative bg-white dark:bg-stone-800 rounded-xl p-6 shadow-md hover:shadow-xl transition-all duration-300 border border-stone-200 dark:border-stone-700"
+          >
+            {/* شريط علوي */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 rounded-t-xl"></div>
+            
+            {/* رقم الترتيب */}
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full shadow-lg">
+              <span className="text-white text-sm font-bold flex items-center gap-1">
+                {index === 0 ? '🥇' : '🥈'} الفائز {index === 0 ? 'الأول' : 'الثاني'}
+              </span>
+            </div>
+
+            {/* المحتوى */}
+            <div className="mt-4">
+              {/* معلومات الفائز */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/30 flex items-center justify-center border-2 border-amber-200 dark:border-amber-800">
+                  <span className="text-3xl">{index === 0 ? '👑' : '🏆'}</span>
+                </div>
+                
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xl font-bold text-stone-800 dark:text-stone-100">
+                      {winner.name || 'فائز'}
+                    </p>
+                    {badge && (
+                      <VerificationBadge 
+                        level={badge} 
+                        size="md"
+                        showTooltip={true}
+                      />
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    عضو متميز في المنصة
+                  </p>
+                </div>
+              </div>
+
+              {/* الإحصائيات */}
+              <div className="bg-stone-50 dark:bg-stone-900/50 rounded-lg p-4 border border-stone-200 dark:border-stone-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <span className="text-xl">🤲</span>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {winner.prayerCount || 0}
+                      </p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">
+                        دعاء اليوم
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <div className="inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-semibold">
+                      <span>✓</span>
+                      <span>مؤهل للعرض</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* المكافأة */}
+              <div className="mt-4 flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
+                <span className="text-lg">🎁</span>
+                <span>عرض الاسم في الصفحة الرئيسية لمدة 24 ساعة</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+    {/* رسالة تحفيزية */}
+    <div className="mt-8 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-xl p-5 border-2 border-dashed border-amber-200 dark:border-amber-800">
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+          <span className="text-2xl">💫</span>
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-amber-800 dark:text-amber-300 text-lg mb-1">
+            تريد أن يظهر اسمك هنا؟
+          </p>
+          <p className="text-stone-700 dark:text-stone-300 text-sm leading-relaxed">
+            ادعُ لـ 3 طلبات على الأقل بإخلاص وادخل القرعة اليومية تلقائياً
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         <div className="mb-8">
           <div className="text-center mb-6">
             <h2 className="text-3xl font-bold text-stone-800 mb-2">
@@ -1595,8 +1967,8 @@ try {
             if (navigator.share) {
               navigator.share({
                 title: 'يُجيب - منصة الدعاء الجماعي',
-                text: 'انضم إلينا في الدعاء - "وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ"',
-                url: window.location.href
+                text: 'دعوة واحدة قد تغير حياة 🤲',
+                url: 'https://yojeeb.com/share'
               });
             } else {
               setToastMessage({
@@ -1612,7 +1984,7 @@ try {
         </button>
 
         {/* زر التحميل الثابت */}
-        <button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-5 rounded-2xl font-bold text-2xl mb-8 shadow-xl hover:from-purple-700 hover:to-purple-800 transition-all flex items-center justify-center gap-3">
+        <button onClick={handleInstallPWA} className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-5 rounded-2xl font-bold text-2xl mb-8 shadow-xl hover:from-purple-700 hover:to-purple-800 transition-all flex items-center justify-center gap-3">
           <Download size={28} />
           حمّل التطبيق على شاشتك
         </button>
@@ -1622,12 +1994,11 @@ try {
           <p className="text-stone-700 text-2xl font-semibold mb-2">
             منصة الدعاء الجماعي © 2025
           </p>
-          <p className="text-stone-600 text-xl mb-3">
-            فكرة وتطوير <span className="font-bold text-emerald-700">الغافقي</span>
-          </p>
-          <p className="text-stone-500 text-lg">
-            نسألكم الدعاء 🤲
-          </p>
+          <p className="text-stone-600 text-xl mb-2">
+            من ابتكار <span className="font-bold text-emerald-700">الغافقي</span></p>
+          <div className="mt-4">
+            <img src="/icon-192.png" alt="يُجيب" className="w-20 h-20 mx-auto rounded-2xl shadow-md" />
+          </div>
         </footer>
 
       </div>

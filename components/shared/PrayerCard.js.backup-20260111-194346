@@ -1,0 +1,228 @@
+'use client'
+import { useState } from 'react';
+import { quranQuotes } from '@/lib/quranQuotes';
+import { getVerseText, getVerseSource } from '@/lib/utils';
+import VerificationBadge, { createVerificationLevel } from './VerificationBadge';
+
+// ════════════════════════════════════════════════════════════
+// 🃏 بطاقة طلب الدعاء - النسخة المحسّنة للموبايل
+// ════════════════════════════════════════════════════════════
+
+export default function PrayerCard({ request, onPray }) {
+  const [isHiding, setIsHiding] = useState(false);
+  const [isPraying, setIsPraying] = useState(false);
+
+  // 🎨 ألوان حسب نوع الطلب
+  const typeStyles = {
+    personal: {
+      bg: 'bg-gradient-to-br from-amber-50 to-white',
+      border: 'border-amber-300',
+      accent: 'bg-amber-500',
+      text: 'text-amber-700',
+      button: 'bg-amber-500 hover:bg-amber-600',
+      icon: '🤲',
+      label: 'دعاء شخصي'
+    },
+    friend: {
+      bg: 'bg-gradient-to-br from-blue-50 to-white',
+      border: 'border-blue-300',
+      accent: 'bg-blue-500',
+      text: 'text-blue-700',
+      button: 'bg-blue-500 hover:bg-blue-600',
+      icon: '👥',
+      label: 'لصديق'
+    },
+    deceased: {
+      bg: 'bg-gradient-to-br from-stone-100 to-white',
+      border: 'border-stone-400',
+      accent: 'bg-stone-600',
+      text: 'text-stone-700',
+      button: 'bg-stone-600 hover:bg-stone-700',
+      icon: '🕊️',
+      label: 'لمتوفى'
+    },
+    sick: {
+      bg: 'bg-gradient-to-br from-teal-50 to-white',
+      border: 'border-teal-300',
+      accent: 'bg-teal-500',
+      text: 'text-teal-700',
+      button: 'bg-teal-500 hover:bg-teal-600',
+      icon: '🏥',
+      label: 'لمريض'
+    },
+    general: {
+      bg: 'bg-gradient-to-br from-amber-50 to-white',
+      border: 'border-amber-300',
+      accent: 'bg-amber-500',
+      text: 'text-amber-700',
+      button: 'bg-amber-500 hover:bg-amber-600',
+      icon: '🤲',
+      label: 'دعاء'
+    },
+    collective: {
+      bg: 'bg-gradient-to-br from-purple-50 to-white',
+      border: 'border-purple-300',
+      accent: 'bg-purple-500',
+      text: 'text-purple-700',
+      button: 'bg-purple-500 hover:bg-purple-600',
+      icon: '⭐',
+      label: 'دعاء جماعي'
+    }
+  };
+
+  // 📿 جمل الدعاء المقترحة حسب النوع
+  const prayerSuggestions = {
+    sick: "اللهم الشفاء العاجل",
+    deceased: "اللهم الرحمة والمغفرة",
+    personal: "اللهم تحقيق الأمنيات",
+    friend: "اللهم البركة والتوفيق",
+    general: "اللهم استجب",
+    collective: "اللهم استجب"
+  };
+
+  const style = typeStyles[request.type] || typeStyles.personal;
+
+  // 👤 عرض الاسم
+  const getDisplayName = () => {
+    const displayName = getVerseText(request.displayName || request.name) || '';
+    const motherName = getVerseText(request.motherName || request.parent_name) || '';
+
+    if (request.type === 'sick') {
+      if (displayName && displayName !== 'مجهول' && displayName !== '' && displayName !== 'مريض') {
+        return motherName ? `${displayName} ${motherName}` : displayName;
+      }
+      return 'مريض يطلب دعاءكم';
+    }
+
+    if (request.type === 'deceased') {
+      if (displayName && displayName !== 'مجهول' && displayName !== '') {
+        return motherName ? `${displayName} ${motherName}` : displayName;
+      }
+      return 'متوفى يحتاج دعاءكم';
+    }
+
+    if (request.type === 'friend') {
+      if (displayName && displayName !== 'مجهول' && displayName !== '') {
+        return motherName ? `${displayName} ${motherName}` : displayName;
+      }
+      return 'صديق يطلب دعاءكم';
+    }
+
+    if (displayName && displayName !== 'مجهول' && displayName !== '') {
+      return motherName ? `${displayName} ${motherName}` : displayName;
+    }
+
+    return 'شخص يطلب دعاءكم';
+  };
+
+  // 🔢 تنسيق العدد
+  const formatCount = (count) => {
+    if (!count || count === 0) return '0';
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}م`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}ألف`;
+    return count.toString();
+  };
+
+  // 🤲 معالجة الدعاء
+  const handlePray = async () => {
+    if (isPraying || request.hasPrayed) return;
+    setIsPraying(true);
+    try {
+      await onPray(request.id);
+      setIsHiding(true);
+    } catch (error) {
+      console.error('Error praying:', error);
+      setIsPraying(false);
+    }
+  };
+
+  // 🎖️ شارة التوثيق
+  const getBadgeLevel = () => {
+    if (!request.userLevel || request.userLevel < 2) return null;
+    if (request.userLevel === 3) return createVerificationLevel(98, 'active', 0);
+    return createVerificationLevel(85, 'active', 0);
+  };
+
+  const badgeLevel = getBadgeLevel();
+
+  // 🎨 واجهة المستخدم
+  return (
+    <div
+      className={`
+        ${style.bg} ${style.border}
+        border-2 rounded-xl p-4 shadow-md
+        transition-all duration-300
+        ${isHiding ? 'opacity-0 scale-95' : ''}
+        ${request.hasPrayed ? 'opacity-60' : 'hover:shadow-lg'}
+      `}
+    >
+      {/* الصف العلوي */}
+      <div className="flex items-center justify-between mb-3">
+        <span className={`${style.accent} text-white text-sm font-bold px-3 py-1 rounded-full flex items-center gap-1`}>
+          <span>{style.icon}</span>
+          <span>{style.label}</span>
+        </span>
+        <div className="flex items-center gap-1 text-stone-600">
+          <span className="text-lg">🤲</span>
+          <span className="font-bold text-lg">{formatCount(request.prayerCount || 0)}</span>
+          <span className="text-sm">دعوة</span>
+        </div>
+      </div>
+
+      {/* الاسم */}
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className={`text-xl font-bold ${style.text} leading-tight`}>
+          {getDisplayName()}
+        </h3>
+        {badgeLevel && (
+          <VerificationBadge level={badgeLevel} size="sm" showTooltip={true} />
+        )}
+      </div>
+
+      {/* غرض الدعاء */}
+      {request.purpose && (
+        <p className="text-stone-600 text-base mb-3">
+          🎯 {getVerseText(request.purpose) || request.purpose}
+        </p>
+      )}
+
+      {/* 📿 جملة الدعاء المقترحة */}
+      <div className="bg-white/80 rounded-lg p-3 mb-3 text-center border border-stone-200">
+        <p className="text-stone-700 text-lg font-medium">
+          📿 {prayerSuggestions[request.type] || prayerSuggestions.general}{request.purpose && ` و${request.purpose}`}
+        </p>
+      </div>
+
+      {/* الآية القرآنية */}
+      {request.quranic_verse && (
+        <div className="bg-white/60 rounded-lg p-2 mb-3 border border-purple-100">
+          <p className="text-purple-800 text-sm leading-relaxed" dir="rtl">
+            📖 {getVerseText(request.quranic_verse)}
+          </p>
+        </div>
+      )}
+
+      {/* زر الدعاء */}
+      <button
+        onClick={handlePray}
+        disabled={request.hasPrayed || isPraying}
+        className={`
+          w-full py-3 rounded-xl text-white text-lg font-bold
+          ${style.button}
+          transition-all duration-200
+          disabled:opacity-50 disabled:cursor-not-allowed
+          shadow-md hover:shadow-lg
+          flex items-center justify-center gap-2
+        `}
+      >
+        {request.hasPrayed ? (
+          <>✅ تم الدعاء - جزاك الله خيراً</>
+        ) : isPraying ? (
+          <>⏳ جاري الدعاء...</>
+        ) : (
+          <>🤲 ادعُ الآن</>
+        )}
+      </button>
+    </div>
+  );
+}

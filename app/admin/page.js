@@ -17,7 +17,7 @@ export default function AdminLoginPage() {
   // 🔐 التحقق من تسجيل الدخول المسبق
   // ============================================================================
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     const userRole = localStorage.getItem('userRole');
     
     if (token && (userRole === 'admin' || userRole === 'super_admin')) {
@@ -50,7 +50,7 @@ export default function AdminLoginPage() {
 
       if (response.ok) {
         // حفظ البيانات
-        localStorage.setItem('token', data.token);
+        localStorage.setItem('auth_token', data.token);
         localStorage.setItem('userRole', data.role);
         localStorage.setItem('user', JSON.stringify({
           id: data.userId,

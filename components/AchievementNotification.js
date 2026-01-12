@@ -301,7 +301,7 @@ export function AchievementToast({ message, type = 'success', onClose }) {
 
   return (
     <div
-      className={`fixed top-4 right-4 z-50 transform transition-all duration-300 ${
+      className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-[9999] transform transition-all duration-300 ${
         isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
       }`}
     >

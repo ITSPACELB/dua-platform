@@ -1,0 +1,202 @@
+// ════════════════════════════════════════════════════════════
+// 📱 القائمة الجانبية المحدثة - المرحلة 9
+// ════════════════════════════════════════════════════════════
+// التحديثات:
+// ✅ إضافة "المكتبة" في القائمة
+// ✅ إضافة "لوحة الإدارة" (للأدمن فقط)
+// ✅ دمج القوائم القديمة والجديدة
+// ════════════════════════════════════════════════════════════
+
+import { useState } from 'react';
+import { Menu, Home, User, TrendingUp, Award, BookOpen, Heart, HelpCircle, LogOut, Shield } from 'lucide-react';
+
+export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsVisibility }) {
+  const [showMenu, setShowMenu] = useState(false);
+  
+  // التحقق من صلاحية الأدمن
+  const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') : null;
+
+  // القيم الافتراضية للـ tabsVisibility
+  const tabs = tabsVisibility || {
+    home: true,
+    prayers: true,
+    profile: true,
+    achievements: true,
+    notifications: true
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 📋 عناصر القائمة المحدثة
+  // ═══════════════════════════════════════════════════════════
+  const menuItems = [
+    // الرئيسية (مشروطة بـ tabsVisibility.home)
+    ...(tabs.home ? [{ 
+      id: 'home', 
+      label: '🏠 الرئيسية', 
+      icon: Home 
+    }] : []),
+    
+    // الملف الشخصي (مشروط بـ tabsVisibility.profile)
+    ...(tabs.profile ? [{ 
+      id: 'profile', 
+      label: '👤 معلوماتك الشخصية', 
+      icon: User 
+    }] : []),
+    
+    // الإحصائيات (دائماً مرئي)
+    { 
+      id: 'stats', 
+      label: '📊 إحصائياتك', 
+      icon: TrendingUp 
+    },
+    
+    // الإنجازات (مشروط بـ tabsVisibility.achievements)
+    ...(tabs.achievements ? [{ 
+      id: 'achievements', 
+      label: '🏆 إنجازاتك', 
+      icon: Award 
+    }] : []),
+    
+    // طلبات الدعاء (دائماً مرئي)
+    { 
+      id: 'prayer-requests', 
+      label: '🤲 طلبات الدعاء', 
+      icon: Heart 
+    },
+    
+    // لوحة الإدارة (للأدمن فقط - دائماً مرئي للأدمن)
+    ...(userRole === 'admin' || userRole === 'super_admin' ? [{
+      id: 'admin',
+      label: '⚙️ لوحة الإدارة',
+      icon: Shield
+    }] : []),
+    
+    // المكتبة (دائماً مرئي)
+    { 
+      id: 'library', 
+      label: '📚 المكتبة', 
+      icon: BookOpen 
+    },
+    
+    // من نحن (دائماً مرئي)
+    { 
+      id: 'about', 
+      label: '📄 من نحن', 
+      icon: Heart 
+    },
+    
+    // الأسئلة الشائعة (دائماً مرئي)
+    { 
+      id: 'faq', 
+      label: '❓ الأسئلة الشائعة', 
+      icon: HelpCircle 
+    },
+  ];
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎯 معالجة النقر على عنصر القائمة
+  // ═══════════════════════════════════════════════════════════
+  const handleMenuClick = (pageId) => {
+    onNavigate(pageId);
+    setShowMenu(false);
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 🚪 معالجة تسجيل الخروج
+  // ═══════════════════════════════════════════════════════════
+  const handleLogout = () => {
+    setShowMenu(false);
+    if (onLogout) {
+      onLogout();
+    }
+  };
+
+  return (
+    <>
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* الهيدر الثابت */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div className="bg-white border-b-2 border-stone-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            
+            {/* زر القائمة */}
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="text-stone-600 hover:text-emerald-600 transition-all duration-200 hover:scale-110 p-2 rounded-lg hover:bg-emerald-50"
+              aria-label="فتح القائمة"
+            >
+              <Menu className="w-7 h-7" />
+            </button>
+
+            {/* العنوان */}
+            <div className="text-center flex-1">
+              <h1 className="text-xl font-bold text-stone-800">
+                منصة يُجيب
+              </h1>
+              <p className="text-sm text-stone-600">
+                مرحباً {user?.fullName || user?.full_name || 'ضيف'} 🌟
+              </p>
+            </div>
+
+            {/* مساحة فارغة للتوازن */}
+            <div className="w-11" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* القائمة المنسدلة */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {showMenu && (
+          <>
+            {/* خلفية شفافة للإغلاق */}
+            <div 
+              className="fixed inset-0 bg-black/20 z-40"
+              onClick={() => setShowMenu(false)}
+            />
+
+            {/* القائمة */}
+            <div className="absolute top-full left-0 right-0 bg-white border-b-2 border-stone-200 shadow-xl z-50 animate-slide-down">
+              <div className="max-w-4xl mx-auto">
+                
+                {/* عناصر القائمة */}
+                {menuItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleMenuClick(item.id)}
+                      className={`
+                        w-full px-6 py-4 text-right 
+                        hover:bg-emerald-50 transition-all duration-200
+                        border-b border-stone-100 
+                        flex items-center gap-4
+                        ${currentPage === item.id ? 'bg-emerald-100 border-r-4 border-r-emerald-600' : ''}
+                      `}
+                    >
+                      <Icon className={`w-6 h-6 ${currentPage === item.id ? 'text-emerald-700' : 'text-emerald-600'}`} />
+                      <span className={`text-lg font-semibold ${currentPage === item.id ? 'text-emerald-800' : 'text-stone-700'}`}>
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* زر تسجيل الخروج */}
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-6 py-4 text-right hover:bg-red-50 transition-all duration-200 flex items-center gap-4 border-t-2 border-stone-200"
+                >
+                  <LogOut className="w-6 h-6 text-red-600" />
+                  <span className="text-lg font-semibold text-red-700">
+                    🚪 تسجيل خروج
+                  </span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}

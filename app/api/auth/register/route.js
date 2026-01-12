@@ -62,6 +62,8 @@ export async function POST(request) {
           error: 'الاسم مطلوب للتسجيل الجديد'
         }, { status: 400 })
       }
+      // إنشاء share_code عشوائي
+      const shareCode = Math.random().toString(36).substring(2, 10).toUpperCase();
 
       // إنشاء المستخدم
       const insertResult = await client.query(`
@@ -76,11 +78,12 @@ export async function POST(request) {
           country,
           age,
           gender,
+          share_code,
           created_at,
           updated_at
         ) VALUES (
           gen_random_uuid(),
-          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
           NOW(), NOW()
         )
         RETURNING *
@@ -93,9 +96,9 @@ export async function POST(request) {
         email || null,
         country || null,
         age || null,
-        gender || null
+        gender || null,
+        shareCode
       ])
-
       user = insertResult.rows[0]
 
       // حساب المستوى

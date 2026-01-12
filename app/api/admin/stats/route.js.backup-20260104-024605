@@ -1,0 +1,167 @@
+// ════════════════════════════════════════════════════════════════════
+// 📊 API إحصائيات لوحة الأدمن - النسخة المحسّنة
+// ════════════════════════════════════════════════════════════════════
+
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from 'next/server';
+import { query } from '@/lib/db';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+async function verifyAdmin(request) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const adminCheck = await query(
+      'SELECT role FROM admin_users WHERE id = $1',
+      [decoded.adminId]
+    );
+    if (adminCheck.rows.length === 0) {
+      return null;
+    }
+    return { ...decoded, role: adminCheck.rows[0].role };
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    return null;
+  }
+}
+
+export async function GET(request) {
+  try {
+    const admin = await verifyAdmin(request);
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
+    }
+
+    // إجمالي المستخدمين
+    const totalUsersResult = await query('SELECT COUNT(*) as count FROM users');
+    const totalUsers = parseInt(totalUsersResult.rows[0].count) || 0;
+
+    // المستخدمين حسب المستوى
+    const usersByLevelResult = await query(`
+      SELECT level, COUNT(*) as count 
+      FROM users 
+      GROUP BY level 
+      ORDER BY level
+    `);
+    const usersByLevel = { level1: 0, level2: 0, level3: 0 };
+    usersByLevelResult.rows.forEach(row => {
+      if (row.level === 1) usersByLevel.level1 = parseInt(row.count);
+      if (row.level === 2) usersByLevel.level2 = parseInt(row.count);
+      if (row.level === 3) usersByLevel.level3 = parseInt(row.count);
+    });
+
+    // المستخدمين النشطين اليوم
+    const activeUsersToday = await query(`
+      SELECT COUNT(DISTINCT user_id) as count FROM prayers 
+      WHERE DATE(prayed_at) = CURRENT_DATE
+    `);
+
+    // إجمالي الدعوات
+    const totalPrayersResult = await query('SELECT COUNT(*) as count FROM prayers');
+    const totalPrayers = parseInt(totalPrayersResult.rows[0].count) || 0;
+
+    // دعوات اليوم
+    const prayersTodayResult = await query(`
+      SELECT COUNT(*) as count FROM prayers 
+      WHERE DATE(prayed_at) = CURRENT_DATE
+    `);
+    const prayersToday = parseInt(prayersTodayResult.rows[0].count) || 0;
+
+    // دعوات الأسبوع
+    const prayersWeekResult = await query(`
+      SELECT COUNT(*) as count FROM prayers 
+      WHERE prayed_at >= NOW() - INTERVAL '7 days'
+    `);
+
+    // الطلبات حسب النوع
+    const requestsByTypeResult = await query(`
+      SELECT type, COUNT(*) as count 
+      FROM prayer_requests 
+      GROUP BY type
+    `);
+    const requestsByType = { personal: 0, friend: 0, deceased: 0, sick: 0 };
+    requestsByTypeResult.rows.forEach(row => {
+      requestsByType[row.type] = parseInt(row.count);
+    });
+
+    // الطلبات حسب الحالة
+    const requestsByStatusResult = await query(`
+      SELECT status, COUNT(*) as count 
+      FROM prayer_requests 
+      GROUP BY status
+    `);
+    const requestsByStatus = { active: 0, completed: 0, expired: 0 };
+    requestsByStatusResult.rows.forEach(row => {
+      requestsByStatus[row.status] = parseInt(row.count);
+    });
+
+    // نسب المستويات
+    const levelRatiosResult = await query(`
+      SELECT level_1, level_2, level_3 FROM level_ratios 
+      ORDER BY id DESC LIMIT 1
+    `);
+    const levelRatios = levelRatiosResult.rows[0] || { level_1: 70, level_2: 20, level_3: 10 };
+
+    // أكثر المستخدمين نشاطاً
+    const topUsersResult = await query(`
+      SELECT 
+        u.id, u.full_name, u.level,
+        COUNT(p.id) as prayer_count
+      FROM users u
+      LEFT JOIN prayers p ON u.id = p.user_id
+      WHERE p.prayed_at >= NOW() - INTERVAL '7 days'
+      GROUP BY u.id, u.full_name, u.level
+      ORDER BY prayer_count DESC
+      LIMIT 5
+    `);
+
+    return NextResponse.json({
+      success: true,
+      stats: {
+        users: {
+          total: totalUsers,
+          byLevel: usersByLevel,
+          activeToday: parseInt(activeUsersToday.rows[0].count) || 0
+        },
+        prayers: {
+          total: totalPrayers,
+          today: prayersToday,
+          thisWeek: parseInt(prayersWeekResult.rows[0].count) || 0
+        },
+        requests: {
+          byType: requestsByType,
+          byStatus: requestsByStatus
+        },
+        levelRatios: {
+          level1: levelRatios.level_1,
+          level2: levelRatios.level_2,
+          level3: levelRatios.level_3
+        },
+        topUsers: topUsersResult.rows.map(row => ({
+          id: row.id,
+          name: row.full_name || 'مستخدم',
+          level: row.level,
+          prayerCount: parseInt(row.prayer_count)
+        })),
+        // للتوافق مع الكود القديم
+        totalUsers: totalUsers,
+        prayersToday: prayersToday,
+        activeUsers: parseInt(activeUsersToday.rows[0].count) || 0,
+        verifiedUsers: { total: usersByLevel.level3 }
+      }
+    });
+  } catch (error) {
+    console.error('Stats API error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في جلب الإحصائيات', details: error.message },
+      { status: 500 }
+    );
+  }
+}

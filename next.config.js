@@ -2,11 +2,9 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  
   images: {
     domains: ['localhost'],
   },
-
   async headers() {
     return [
       {
@@ -31,8 +29,16 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, max-age=0',
+          },
+        ],
+      },
     ]
   },
 }
-
 module.exports = nextConfig

@@ -1,94 +1,154 @@
 // ===============================================
-// ℹ️ صفحة من نحن (About Page)
-// قصة المنصة + نموذج التواصل
+// ℹ️ صفحة من نحن (About Page) - النسخة المُحسّنة
 // ===============================================
 
 import { useState } from 'react';
-import { Mail } from 'lucide-react';
-import IslamicBanner from '../shared/IslamicBanner';
-import MenuBar from '../shared/MenuBar';
+import { Mail, Send, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
 
 export default function AboutPage({ user, onNavigate, onEditProfile }) {
   const [contactMessage, setContactMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!contactMessage.trim()) {
       alert('الرجاء كتابة رسالة');
       return;
     }
-    // TODO: ربط بـ API إرسال البريد
-    alert('تم إرسال رسالتك بنجاح! سنرد عليك قريباً إن شاء الله');
-    setContactMessage('');
+
+    setSending(true);
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: contactMessage,
+          senderName: 'زائر من صفحة من نحن'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSent(true);
+        setContactMessage('');
+        setTimeout(() => setSent(false), 5000);
+      } else {
+        alert(data.error || 'حدث خطأ، حاول مرة أخرى');
+      }
+    } catch (error) {
+      alert('حدث خطأ في الاتصال، حاول مرة أخرى');
+    }
+    setSending(false);
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* 🕌 البانر */}
-      <IslamicBanner />
+    <div className="min-h-screen bg-gradient-to-b from-stone-50 to-stone-100 flex flex-col">
       
-      {/* 📱 القائمة */}
-      <MenuBar 
-        user={user}
-        currentPage="about"
-        onNavigate={onNavigate}
-        onEditProfile={onEditProfile}
-      />
-      
+      {/* 🔙 زر العودة للرئيسية */}
+      <div className="bg-white border-b border-stone-200 px-4 py-3">
+        <button
+          onClick={() => onNavigate('home')}
+          className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+        >
+          <ArrowRight className="w-5 h-5" />
+          العودة للرئيسية
+        </button>
+      </div>
+
       {/* 📄 المحتوى */}
-      <div className="flex-1 p-4">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg border border-stone-200 p-8">
-          
-          {/* 💚 القصة */}
-          <div className="text-center mb-6">
-            <div className="text-4xl mb-4">💚</div>
-            <h2 className="text-2xl font-semibold text-stone-800 mb-6">من نحن</h2>
+      <div className="flex-1 p-4 py-8">
+        <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-stone-200 shadow-sm p-8">
+
+          {/* 🖼️ اللوغو + العنوان */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-emerald-700 mb-2">يُجيب</h1>
+            <p className="text-stone-500 text-lg">منصة الدعاء الجماعي</p>
           </div>
-          
-          <div className="space-y-4 text-stone-700 leading-relaxed">
-            <p>ذات يوم، مررت بمحنة صعبة...</p>
-            
-            <p>كل ما كنت أحتاجه هو دعوة صادقة من قلب مؤمن</p>
+
+          {/* 📝 المحتوى */}
+          <div className="space-y-6 text-stone-700 leading-relaxed text-xl text-center">
             
             <p>
-              الدعاء غيّر حياتي بإذن الله، وأيقنت أن الله يريدنا أن ندعوه وأن ندعو لبعضنا البعض
+              <span className="text-emerald-600 font-semibold">يُجيب</span> منصة تجمع قلوب الناس على الدعاء
             </p>
-            
+
+            <p>
+              نؤمن أن دعوة صادقة قد تكون سبباً في فرج إنسان
+            </p>
+
             {/* 📖 الآية */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 my-6">
-              <p className="text-center" style={{fontFamily: 'Traditional Arabic, serif'}}>
-                ﴿ ادْعُونِي أَسْتَجِبْ لَكُمْ ﴾
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-6 my-8">
+              <p className="text-2xl text-emerald-800 leading-relaxed mb-3" style={{ fontFamily: 'Traditional Arabic, serif' }}>
+                ﴿ وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ ﴾
               </p>
+              <p className="text-emerald-600 text-base">سورة غافر - الآية 60</p>
             </div>
-            
-            <p>
-              الدعاء يغير مسارات القدر بإذن الله، وقد يكون دعاؤك سبب فرج إنسان
+
+            <p className="text-lg">
+              نسأل الله أن يُجيب الدعاء وأن يُحقق الأمنيات لكم جميعاً ولمن تحبون 🤲
             </p>
-            
-            <p>أتمنى أن تتغير حياة الجميع للأحسن، بإذن الله 🤲</p>
           </div>
 
           {/* ✉️ نموذج التواصل */}
-          <div className="mt-8 pt-8 border-t border-stone-200">
-            <h3 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
-              <Mail className="w-5 h-5" />
+          <div className="mt-10 pt-8 border-t border-stone-200">
+            <h3 className="text-xl font-semibold text-stone-800 mb-6 flex items-center justify-center gap-2">
+              <Mail className="w-6 h-6 text-emerald-600" />
               تواصل معنا
             </h3>
-            
-            <textarea
-              value={contactMessage}
-              onChange={(e) => setContactMessage(e.target.value)}
-              placeholder="اكتب رسالتك هنا..."
-              rows="4"
-              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none"
-            />
-            
-            <button
-              onClick={handleSendMessage}
-              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium transition-colors"
-            >
-              إرسال الرسالة إن شاء الله
-            </button>
+
+            {sent ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
+                <div className="text-4xl mb-3">✅</div>
+                <p className="text-emerald-700 font-semibold text-lg">تم إرسال رسالتك بنجاح!</p>
+                <p className="text-emerald-600 mt-1">سنرد عليك قريباً إن شاء الله</p>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  placeholder="اكتب رسالتك هنا...
+إذا أحببت الرد، اذكر اسمك وطريقة التواصل 💚"
+                  rows="4"
+                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none resize-none text-lg transition-all"
+                />
+
+                <button
+                  onClick={handleSendMessage}
+                  disabled={sending || !contactMessage.trim()}
+                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 text-white py-3 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+                >
+                  {sending ? (
+                    <>⏳ جاري الإرسال...</>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5" />
+                      إرسال الرسالة
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+
           </div>
+
+          {/* التوقيع */}
+          <div className="text-center mt-8 pt-6 border-t border-stone-100 text-stone-400">
+            <p>صُنع بـ 💚 لخدمة الناس</p>
+            <p className="mt-1">من ابتكار الغافقي</p>
+            <div className="mt-4">
+              <Image
+                src="/icon-192.png"
+                alt="يُجيب"
+                width={80}
+                height={80}
+                className="mx-auto rounded-2xl shadow-md"
+              />
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

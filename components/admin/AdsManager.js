@@ -1,3 +1,4 @@
+import React from 'react';
 // Ads management component
 
 // Two sections:

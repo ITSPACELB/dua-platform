@@ -38,7 +38,7 @@ export default function AdminAchievementsPanel({ user }) {
   // جلب الإعدادات
   const loadSettings = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/achievements-control?action=getSettings', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -55,7 +55,7 @@ export default function AdminAchievementsPanel({ user }) {
   // جلب سجل القرعات
   const loadLotteryHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/achievements-control?action=getLotteryHistory&limit=10', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -72,7 +72,7 @@ export default function AdminAchievementsPanel({ user }) {
   // جلب أفضل المستخدمين
   const loadTopUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/achievements-control?action=getTopUsers&limit=20', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -90,7 +90,7 @@ export default function AdminAchievementsPanel({ user }) {
   const runLotteryManually = async () => {
     setRunningTask('lottery');
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/cron/daily-lottery', {
         method: 'POST',
         headers: {
@@ -118,7 +118,7 @@ export default function AdminAchievementsPanel({ user }) {
   // تبديل التلقائي/اليدوي
   const toggleAutomatic = async (feature) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const currentSetting = settings?.find(s => s.feature_name === feature);
       
       const response = await fetch('/api/admin/achievements-control', {
@@ -156,7 +156,7 @@ export default function AdminAchievementsPanel({ user }) {
     if (!userId || !userName) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/achievements-control', {
         method: 'POST',
         headers: {
@@ -181,7 +181,7 @@ export default function AdminAchievementsPanel({ user }) {
   // منح إنجاز يدوياً
   const grantAchievement = async (userId, achievementType) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/achievements', {
         method: 'POST',
         headers: {

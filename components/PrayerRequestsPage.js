@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Search, Filter } from 'lucide-react';
 import PrayerCard from './shared/PrayerCard';
 import { quranQuotes } from '@/lib/quranQuotes';
@@ -18,7 +18,7 @@ import { getOrCreateFingerprint } from '@/lib/deviceFingerprint';
 // - إحصائيات
 // ════════════════════════════════════════════════════════════
 
-export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
+export default function PrayerRequestsPage({ user, currentPage, onNavigate, initialTab = "all", onTabReset }) {
   // ═══════════════════════════════════════════════════════════
   // 🔧 الحالة
   // ═══════════════════════════════════════════════════════════
@@ -26,15 +26,15 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   const [myRequests, setMyRequests] = useState([]);
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // ✅ جديد: Tab selector
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'mine', 'others'
-  
+  const [activeTab, setActiveTab] = useState(initialTab); // 'all', 'mine', 'others'
+
   // الفلترة والبحث
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest'); // newest, most_prayed
-  
+
   // Pagination
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const itemsPerPage = 10;
@@ -45,10 +45,10 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   const getUserId = () => {
     // من props
     if (user?.id) return user.id;
-    
+
     // من localStorage
     try {
-      const userData = localStorage.getItem('user_data');
+      const userData = localStorage.getItem('user');
       if (userData) {
         const parsed = JSON.parse(userData);
         return parsed.id;
@@ -56,7 +56,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
     } catch (e) {
       console.error('Error getting user_id:', e);
     }
-    
+
     return null;
   };
 
@@ -70,6 +70,15 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   // ═══════════════════════════════════════════════════════════
   // 📥 جلب البيانات
   // ═══════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════
+  // 🔄 إعادة تعيين initialTab عند المغادرة
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    return () => {
+      if (onTabReset) onTabReset();
+    };
+  }, [onTabReset]);
+
   useEffect(() => {
     loadRequests();
   }, []);
@@ -77,7 +86,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   const loadRequests = async () => {
     try {
       setLoading(true);
-      
+
       // جلب جميع الطلبات
       const allResponse = await fetch(`/api/prayer-request?limit=100&fingerprint=${generateFingerprint()}`);
       if (allResponse.ok) {
@@ -93,13 +102,13 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
             'x-user-id': userId
           }
         });
-        
+
         if (myResponse.ok) {
           const myData = await myResponse.json();
           setMyRequests(myData.myRequests || []);
         }
       }
-      
+
     } catch (error) {
       console.error('Error loading requests:', error);
     } finally {
@@ -110,9 +119,29 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   // ═══════════════════════════════════════════════════════════
   // 🔄 تحديد الطلبات المعروضة حسب Tab
   // ═══════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════
+  // 🔄 useRef لتتبع التغييرات الحقيقية vs تحديث hasPrayed
+  // ═══════════════════════════════════════════════════════════
+  const prevFiltersRef = useRef({ activeTab, selectedFilter, searchQuery, sortBy });
+  const isFilterChange = useRef(false);
+
+  // 🔄 تحديد الطلبات المعروضة حسب Tab
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    let baseRequests = [];
+    // التحقق هل هذا تغيير في الفلاتر أم تحديث بيانات فقط
+    const prev = prevFiltersRef.current;
+    const filtersChanged = 
+      prev.activeTab !== activeTab || 
+      prev.selectedFilter !== selectedFilter || 
+      prev.searchQuery !== searchQuery || 
+      prev.sortBy !== sortBy;
     
+    // تحديث المرجع
+    prevFiltersRef.current = { activeTab, selectedFilter, searchQuery, sortBy };
+    isFilterChange.current = filtersChanged;
+
+    let baseRequests = [];
+
     if (activeTab === 'mine') {
       baseRequests = myRequests;
     } else if (activeTab === 'others') {
@@ -133,7 +162,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
 
     // البحث بالاسم
     if (searchQuery.trim()) {
-      result = result.filter(req => 
+      result = result.filter(req =>
         req.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         req.purpose?.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -147,9 +176,12 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
     }
 
     setFilteredRequests(result);
-    setCurrentPageNum(1);
+    
+    // ✅ إعادة للصفحة 1 فقط عند تغيير الفلاتر، وليس عند تحديث hasPrayed
+    if (filtersChanged) {
+      setCurrentPageNum(1);
+    }
   }, [activeTab, selectedFilter, searchQuery, sortBy, allRequests, myRequests]);
-
   // ═══════════════════════════════════════════════════════════
   // 📄 Pagination
   // ═══════════════════════════════════════════════════════════
@@ -163,21 +195,28 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   // ═══════════════════════════════════════════════════════════
   const handlePray = async (requestId) => {
     try {
+      const fingerprint = generateFingerprint();
       const response = await fetch('/api/prayer', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-device-fingerprint': fingerprint
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           action: 'record_prayer',
-          requestId 
+          deviceFingerprint: fingerprint,
+          requestId
         })
       });
 
       if (response.ok) {
-        // إزالة من القائمة
-        setAllRequests(prev => prev.filter(r => r.id !== requestId));
-        setFilteredRequests(prev => prev.filter(r => r.id !== requestId));
+        // ✅ تعليم hasPrayed
+        setAllRequests(prev => 
+          prev.map(r => r.id === requestId ? { ...r, hasPrayed: true } : r)
+        );
+        setFilteredRequests(prev => 
+          prev.map(r => r.id === requestId ? { ...r, hasPrayed: true } : r)
+        );
       }
     } catch (error) {
       console.error('Error praying:', error);
@@ -201,7 +240,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
       <div className="max-w-4xl mx-auto px-4 py-6">
-        
+
         {/* الهيدر */}
         <div className="mb-6">
           <button
@@ -239,7 +278,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
           >
             🤲 الكل
           </button>
-          
+
           {getUserId() && (
             <>
               <button
@@ -254,7 +293,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
               >
                 📋 طلباتي
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('others')}
                 className={`
@@ -275,17 +314,17 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 text-center shadow-md border-2 border-emerald-100">
             <div className="text-3xl font-bold text-emerald-600">
-              {activeTab === 'mine' ? myRequests.length : 
-               activeTab === 'others' ? allRequests.length - myRequests.length : 
+              {activeTab === 'mine' ? myRequests.length :
+               activeTab === 'others' ? allRequests.length - myRequests.length :
                allRequests.length}
             </div>
             <div className="text-sm text-stone-600 mt-1">
-              {activeTab === 'mine' ? 'طلباتي' : 
-               activeTab === 'others' ? 'طلبات الآخرين' : 
+              {activeTab === 'mine' ? 'طلباتي' :
+               activeTab === 'others' ? 'طلبات الآخرين' :
                'إجمالي الطلبات'}
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl p-4 text-center shadow-md border-2 border-blue-100">
             <div className="text-3xl font-bold text-blue-600">
               {filteredRequests.length}
@@ -294,7 +333,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
               بعد الفلترة
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl p-4 text-center shadow-md border-2 border-amber-100">
             <div className="text-3xl font-bold text-amber-600">
               {totalPages}
@@ -315,8 +354,8 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
                 onClick={() => setSelectedFilter(filter.id)}
                 className={`
                   flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap font-semibold transition-all
-                  ${selectedFilter === filter.id 
-                    ? 'bg-emerald-600 text-white shadow-lg' 
+                  ${selectedFilter === filter.id
+                    ? 'bg-emerald-600 text-white shadow-lg'
                     : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }
                 `}
@@ -383,10 +422,10 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
               {activeTab === 'mine' ? 'ليس لديك طلبات بعد' : 'لا توجد طلبات'}
             </p>
             <p className="text-lg text-stone-600">
-              {activeTab === 'mine' 
-                ? 'يمكنك إنشاء طلب دعاء جديد من الصفحة الرئيسية' 
-                : searchQuery || selectedFilter !== 'all' 
-                  ? 'جرب تغيير الفلتر أو البحث' 
+              {activeTab === 'mine'
+                ? 'يمكنك إنشاء طلب دعاء جديد من الصفحة الرئيسية'
+                : searchQuery || selectedFilter !== 'all'
+                  ? 'جرب تغيير الفلتر أو البحث'
                   : 'لا توجد طلبات دعاء حالياً'}
             </p>
           </div>
@@ -396,7 +435,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
             <div className="space-y-4 mb-6">
               {currentRequests.map(request => {
                 const isMyRequest = activeTab === 'mine';
-                
+
                 return (
                   <div key={request.id} className="relative">
                     {/* ✅ إحصائيات طلباتي */}
@@ -438,7 +477,7 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* البطاقة */}
                     <PrayerCard
                       request={{
@@ -466,8 +505,8 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
                   disabled={currentPageNum === 1}
                   className={`
                     px-4 py-2 rounded-lg font-bold transition-all
-                    ${currentPageNum === 1 
-                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed' 
+                    ${currentPageNum === 1
+                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
                       : 'bg-emerald-600 text-white hover:bg-emerald-700'
                     }
                   `}
@@ -498,8 +537,8 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
                   disabled={currentPageNum === totalPages}
                   className={`
                     px-4 py-2 rounded-lg font-bold transition-all
-                    ${currentPageNum === totalPages 
-                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed' 
+                    ${currentPageNum === totalPages
+                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
                       : 'bg-emerald-600 text-white hover:bg-emerald-700'
                     }
                   `}
@@ -515,10 +554,10 @@ export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
         <div className="mt-8 bg-amber-50 border-2 border-amber-200 rounded-xl p-6 text-center">
           <div className="text-4xl mb-3">💡</div>
           <p className="text-lg text-amber-800">
-            كلما دعوت للآخرين، دعت لك الملائكة بمثل ما تدعو
+            وَادْعُوهُ خَوْفًا وَطَمَعًا إِنَّ رَحْمَتَ اللَّهِ قَرِيبٌ مِنَ الْمُحْسِنِينَ
           </p>
           <p className="text-sm text-amber-700 mt-2">
-            "اللهم آمين، ولك بمثل"
+            سورة الأعراف - الآية 56
           </p>
         </div>
 

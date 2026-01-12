@@ -349,7 +349,8 @@ export async function GET(request) {
             totalStars: 0,
             lastPrayerDate: null,
             prayersThisMonth: 0,
-            prayersReceivedCount: 0,
+            prayersReceived: 0,
+            uniquePeoplePrayed: 0,
             answeredPrayers: 0,
             believersCount,
             verificationLevel: {
@@ -388,11 +389,13 @@ export async function GET(request) {
         [decoded.userId]
       );
 
-      // حساب عدد من دعوا للمستخدم
+      // حساب الدعوات المُجابة وعدد من دعوا للمستخدم
       const receivedPrayersResult = await pool.query(
-        `SELECT COUNT(DISTINCT p.user_id) as count
+        `SELECT 
+           COALESCE(SUM(pr.prayer_count), 0) as total_prayers_received,
+           COUNT(DISTINCT p.user_id) as unique_people_prayed
          FROM prayer_requests pr
-         JOIN prayers p ON pr.id = p.request_id
+         LEFT JOIN prayers p ON pr.id = p.request_id
          WHERE pr.user_id = $1`,
         [decoded.userId]
       );
@@ -446,7 +449,8 @@ export async function GET(request) {
           totalStars: parseInt(stats.total_stars || 0),
           lastPrayerDate: stats.last_prayer_date,
           prayersThisMonth: parseInt(monthPrayersResult.rows[0].count),
-          prayersReceivedCount: parseInt(receivedPrayersResult.rows[0].count),
+          prayersReceived: parseInt(receivedPrayersResult.rows[0].total_prayers_received) || 0,
+          uniquePeoplePrayed: parseInt(receivedPrayersResult.rows[0].unique_people_prayed) || 0,
           answeredPrayers: parseInt(answeredResult.rows[0].count),
           believersCount,
           verificationLevel: {

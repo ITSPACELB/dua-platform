@@ -8,7 +8,7 @@ import { Shield, Lock, User } from 'lucide-react';
 
 export default function AdminLogin({ onLoginSuccess }) {
   const [credentials, setCredentials] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function AdminLogin({ onLoginSuccess }) {
 
     try {
       // استدعاء API تسجيل الدخول
-      const response = await fetch('/api/auth/admin-login', {
+      const response = await fetch('/api/admin/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -44,7 +44,7 @@ export default function AdminLogin({ onLoginSuccess }) {
           window.location.reload();
         }
       } else {
-        setError(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        setError(data.error || 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -87,16 +87,16 @@ export default function AdminLogin({ onLoginSuccess }) {
             <div>
               <label className="block text-gray-700 font-bold mb-2 text-sm">
                 <User className="w-4 h-4 inline ml-1" />
-                اسم المستخدم
+                البريد الإلكتروني
               </label>
               <input
                 type="text"
-                value={credentials.username}
-                onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+                value={credentials.email}
+                onChange={(e) => setCredentials({...credentials, email: e.target.value})}
                 placeholder="admin"
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 outline-none transition-all text-lg"
                 required
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
 

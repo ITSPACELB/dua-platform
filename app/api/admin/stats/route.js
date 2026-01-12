@@ -1,4 +1,12 @@
+// ════════════════════════════════════════════════════════════════════════════
+// 📊 API إحصائيات لوحة الأدمن - النسخة الشاملة والاحترافية
+// ════════════════════════════════════════════════════════════════════════════
+// التاريخ: 2026-01-04
+// الوصف: إحصائيات مفصلة وشاملة لكل جوانب المنصة
+// ════════════════════════════════════════════════════════════════════════════
+
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
@@ -6,28 +14,24 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// ============================================================================
-// 🔐 التحقق من صلاحيات المسؤول
-// ============================================================================
+// ════════════════════════════════════════════════════════════════════════════
+// 🔐 التحقق من صلاحيات الأدمن
+// ════════════════════════════════════════════════════════════════════════════
 async function verifyAdmin(request) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return null;
     }
-
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET);
-    
     const adminCheck = await query(
       'SELECT role FROM admin_users WHERE id = $1',
       [decoded.adminId]
     );
-
     if (adminCheck.rows.length === 0) {
       return null;
     }
-
     return { ...decoded, role: adminCheck.rows[0].role };
   } catch (error) {
     console.error('Admin verification error:', error);
@@ -35,382 +39,394 @@ async function verifyAdmin(request) {
   }
 }
 
-// ============================================================================
-// 📊 GET - جلب إحصائيات المنصة (للمدير)
-// ============================================================================
+// ════════════════════════════════════════════════════════════════════════════
+// 📊 GET - جلب جميع الإحصائيات
+// ════════════════════════════════════════════════════════════════════════════
 export async function GET(request) {
-    try {
-        // ✅ التحقق من صلاحية المدير
-        const admin = await verifyAdmin(request);
-        
-        if (!admin) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
-        }
-
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const fingerprint = searchParams.get('fingerprint');
-
-        // 1️⃣ عداد المؤمنين (من دعا + من طلب الدعاء = المتفاعلين)
-        const believersCountResult = await query(
-            `SELECT COUNT(DISTINCT user_id) as count 
-             FROM (
-                 SELECT user_id FROM prayers WHERE prayed_at IS NOT NULL
-                 UNION
-                 SELECT user_id FROM prayer_requests
-             ) as believers`
-        );
-        const believersCount = parseInt(believersCountResult.rows[0].count) || 0;
-
-        // 2️⃣ إجمالي الدعوات على المنصة
-        const totalPrayersResult = await query(
-            'SELECT COUNT(*) as count FROM prayers'
-        );
-        const totalPrayers = parseInt(totalPrayersResult.rows[0].count) || 0;
-
-        // 3️⃣ الدعوات النشطة اليوم
-        const todayPrayersResult = await query(
-            `SELECT COUNT(*) as count FROM prayers 
-             WHERE DATE(prayed_at) = CURRENT_DATE`
-        );
-        const todayPrayers = parseInt(todayPrayersResult.rows[0].count) || 0;
-
-        // 4️⃣ طلبات الدعاء النشطة
-        const activeRequestsResult = await query(
-            `SELECT COUNT(*) as count FROM prayer_requests 
-             WHERE status = 'active'`
-        );
-        const activeRequests = parseInt(activeRequestsResult.rows[0].count) || 0;
-
-        // 5️⃣ توزيع أنواع الطلبات
-        const requestTypesResult = await query(
-            `SELECT type, COUNT(*) as count 
-             FROM prayer_requests 
-             WHERE status = 'active'
-             GROUP BY type`
-        );
-        const requestTypes = {
-            personal: 0,
-            friend: 0,
-            deceased: 0,
-            sick: 0
-        };
-        requestTypesResult.rows.forEach(row => {
-            requestTypes[row.type] = parseInt(row.count);
-        });
-
-        // 6️⃣ الأكثر تفاعلاً (من إعدادات الأدمن)
-        const topActiveResult = await query(
-            `SELECT setting_value 
-             FROM admin_settings 
-             WHERE setting_key = 'top_active_users'`
-        );
-        let topActiveUsers = [];
-        if (topActiveResult.rows.length > 0) {
-            topActiveUsers = topActiveResult.rows[0].setting_value || [];
-        }
-
-        // 7️⃣ الدعاء الجماعي الفعّال
-        const collectivePrayerResult = await query(
-            `SELECT content, type, timing, start_date, end_date 
-             FROM collective_prayer 
-             WHERE is_active = true 
-             AND (start_date IS NULL OR start_date <= NOW())
-             AND (end_date IS NULL OR end_date >= NOW())
-             ORDER BY created_at DESC 
-             LIMIT 1`
-        );
-        const collectivePrayer = collectivePrayerResult.rows[0] || null;
-
-        // 8️⃣ البانر الفعّال
-        const bannerResult = await query(
-            `SELECT content, link 
-             FROM banner 
-             WHERE is_active = true 
-             ORDER BY updated_at DESC 
-             LIMIT 1`
-        );
-        const banner = bannerResult.rows[0] || null;
-
-        // 9️⃣ إحصائيات المستخدم (إن كان مسجلاً)
-        let userStats = null;
-        if (userId) {
-            const userStatsResult = await query(
-                `SELECT 
-                    total_prayers,
-                    prayers_today,
-                    prayers_week,
-                    prayers_month,
-                    prayers_year,
-                    total_stars,
-                    current_level,
-                    last_prayer_date
-                 FROM user_stats 
-                 WHERE user_id = $1`,
-                [userId]
-            );
-            
-            if (userStatsResult.rows.length > 0) {
-                userStats = userStatsResult.rows[0];
-                
-                // 🔟 من دعا لي اليوم
-                const prayedForMeResult = await query(
-                    `SELECT COUNT(DISTINCT p.user_id) as count 
-                     FROM prayers p
-                     INNER JOIN prayer_requests pr ON p.request_id = pr.id
-                     WHERE pr.user_id = $1 
-                     AND DATE(p.prayed_at) = CURRENT_DATE`,
-                    [userId]
-                );
-                userStats.prayed_for_me_today = parseInt(prayedForMeResult.rows[0].count) || 0;
-
-                // 1️⃣1️⃣ إنجازاتي
-                const achievementsResult = await query(
-                    `SELECT 
-                        achievement_type,
-                        stars_earned,
-                        achieved_at
-                     FROM achievements 
-                     WHERE user_id = $1 
-                     ORDER BY achieved_at DESC 
-                     LIMIT 10`,
-                    [userId]
-                );
-                userStats.achievements = achievementsResult.rows;
-            }
-        } else if (fingerprint) {
-            // للزوار: جلب بيانات محدودة بناءً على البصمة
-            const userByFingerprintResult = await query(
-                `SELECT id FROM users WHERE device_fingerprint = $1`,
-                [fingerprint]
-            );
-            
-            if (userByFingerprintResult.rows.length > 0) {
-                const tempUserId = userByFingerprintResult.rows[0].id;
-                
-                const userStatsResult = await query(
-                    `SELECT 
-                        total_prayers,
-                        prayers_today,
-                        prayers_week
-                     FROM user_stats 
-                     WHERE user_id = $1`,
-                    [tempUserId]
-                );
-                
-                if (userStatsResult.rows.length > 0) {
-                    userStats = {
-                        total_prayers: userStatsResult.rows[0].total_prayers,
-                        prayers_today: userStatsResult.rows[0].prayers_today,
-                        prayers_week: userStatsResult.rows[0].prayers_week,
-                        limited: true // زائر
-                    };
-                }
-            }
-        }
-
-        return NextResponse.json({
-            success: true,
-            stats: {
-                believersCount, // عداد المؤمنين المتفاعلين
-                totalPrayers,
-                todayPrayers,
-                activeRequests,
-                requestTypes,
-                topActiveUsers,
-                collectivePrayer,
-                banner,
-                userStats
-            }
-        });
-
-    } catch (error) {
-        console.error('Stats error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء جلب الإحصائيات', details: error.message },
-            { status: 500 }
-        );
+  try {
+    const admin = await verifyAdmin(request);
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
     }
-}
 
-// ============================================================================
-// 📊 POST - تحديث إحصائيات المستخدم بعد الدعاء
-// ============================================================================
-export async function POST(request) {
-    try {
-        // ✅ التحقق من صلاحية المدير
-        const admin = await verifyAdmin(request);
-        
-        if (!admin) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 });
-        }
+    // ══════════════════════════════════════════════════════════════════════
+    // 👥 إحصائيات المستخدمين
+    // ══════════════════════════════════════════════════════════════════════
+    
+    // إجمالي المستخدمين
+    const totalUsersResult = await query('SELECT COUNT(*) as count FROM users');
+    const totalUsers = parseInt(totalUsersResult.rows[0].count) || 0;
 
-        const body = await request.json();
-        const { userId, fingerprint, action } = body;
+    // المستخدمين حسب المستوى
+    const usersByLevelResult = await query(`
+      SELECT level, COUNT(*) as count
+      FROM users
+      GROUP BY level
+      ORDER BY level
+    `);
+    const usersByLevel = { level1: 0, level2: 0, level3: 0 };
+    usersByLevelResult.rows.forEach(row => {
+      if (row.level === 1) usersByLevel.level1 = parseInt(row.count);
+      if (row.level === 2) usersByLevel.level2 = parseInt(row.count);
+      if (row.level === 3) usersByLevel.level3 = parseInt(row.count);
+    });
 
-        if (!userId && !fingerprint) {
-            return NextResponse.json(
-                { error: 'معرف المستخدم أو البصمة مطلوبة' },
-                { status: 400 }
-            );
-        }
+    // المستخدمين الجدد
+    const newUsersResult = await query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') as today,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as week,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as month
+      FROM users
+    `);
+    const newUsers = {
+      today: parseInt(newUsersResult.rows[0].today) || 0,
+      week: parseInt(newUsersResult.rows[0].week) || 0,
+      month: parseInt(newUsersResult.rows[0].month) || 0
+    };
 
-        let userIdToUpdate = userId;
+    // المستخدمين النشطين
+    const activeUsersResult = await query(`
+      SELECT 
+        COUNT(DISTINCT user_id) FILTER (WHERE DATE(prayed_at) = CURRENT_DATE) as today,
+        COUNT(DISTINCT user_id) FILTER (WHERE prayed_at >= NOW() - INTERVAL '7 days') as week,
+        COUNT(DISTINCT user_id) FILTER (WHERE prayed_at >= NOW() - INTERVAL '30 days') as month
+      FROM prayers
+    `);
+    const activeUsers = {
+      today: parseInt(activeUsersResult.rows[0].today) || 0,
+      week: parseInt(activeUsersResult.rows[0].week) || 0,
+      month: parseInt(activeUsersResult.rows[0].month) || 0
+    };
 
-        // إذا كان زائر (بالبصمة فقط)
-        if (!userId && fingerprint) {
-            const userResult = await query(
-                `SELECT id FROM users WHERE device_fingerprint = $1`,
-                [fingerprint]
-            );
-            
-            if (userResult.rows.length === 0) {
-                // إنشاء مستخدم مؤقت
-                const newUserResult = await query(
-                    `INSERT INTO users (device_fingerprint, is_anonymous, created_at) 
-                     VALUES ($1, true, NOW()) 
-                     RETURNING id`,
-                    [fingerprint]
-                );
-                userIdToUpdate = newUserResult.rows[0].id;
-                
-                // إنشاء سجل إحصائيات
-                await query(
-                    `INSERT INTO user_stats (user_id, total_prayers, prayers_today, prayers_week, prayers_month, prayers_year, total_stars, current_level) 
-                     VALUES ($1, 0, 0, 0, 0, 0, 0, 0)`,
-                    [userIdToUpdate]
-                );
-            } else {
-                userIdToUpdate = userResult.rows[0].id;
-            }
-        }
+    // ══════════════════════════════════════════════════════════════════════
+    // 🤲 إحصائيات الدعوات
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const prayersResult = await query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE DATE(prayed_at) = CURRENT_DATE) as today,
+        COUNT(*) FILTER (WHERE prayed_at >= NOW() - INTERVAL '7 days') as week,
+        COUNT(*) FILTER (WHERE prayed_at >= NOW() - INTERVAL '30 days') as month
+      FROM prayers
+    `);
+    const prayers = {
+      total: parseInt(prayersResult.rows[0].total) || 0,
+      today: parseInt(prayersResult.rows[0].today) || 0,
+      week: parseInt(prayersResult.rows[0].week) || 0,
+      month: parseInt(prayersResult.rows[0].month) || 0
+    };
 
-        // تحديث الإحصائيات
-        if (action === 'prayed') {
-            await query(
-                `UPDATE user_stats 
-                 SET 
-                    total_prayers = total_prayers + 1,
-                    prayers_today = prayers_today + 1,
-                    prayers_week = prayers_week + 1,
-                    prayers_month = prayers_month + 1,
-                    prayers_year = prayers_year + 1,
-                    updated_at = NOW()
-                 WHERE user_id = $1`,
-                [userIdToUpdate]
-            );
+    // متوسط الدعوات اليومي (آخر 30 يوم)
+    const avgDailyResult = await query(`
+      SELECT COALESCE(
+        ROUND(COUNT(*)::numeric / NULLIF(
+          EXTRACT(DAY FROM NOW() - MIN(prayed_at)), 0
+        ), 1), 0
+      ) as avg_daily
+      FROM prayers
+      WHERE prayed_at >= NOW() - INTERVAL '30 days'
+    `);
+    const avgDailyPrayers = parseFloat(avgDailyResult.rows[0].avg_daily) || 0;
 
-            // 🎲 التحقق من القرعة وتوزيع المستويات
-            await checkAndAssignLevels(userIdToUpdate);
-        }
+    // ══════════════════════════════════════════════════════════════════════
+    // 📋 إحصائيات طلبات الدعاء
+    // ══════════════════════════════════════════════════════════════════════
+    
+    // إجمالي الطلبات
+    const totalRequestsResult = await query('SELECT COUNT(*) as count FROM prayer_requests');
+    const totalRequests = parseInt(totalRequestsResult.rows[0].count) || 0;
 
-        return NextResponse.json({
-            success: true,
-            message: 'تم تحديث الإحصائيات بنجاح'
-        });
+    // الطلبات حسب النوع
+    const requestsByTypeResult = await query(`
+      SELECT type, COUNT(*) as count
+      FROM prayer_requests
+      GROUP BY type
+    `);
+    const requestsByType = { personal: 0, friend: 0, deceased: 0, sick: 0 };
+    requestsByTypeResult.rows.forEach(row => {
+      if (requestsByType.hasOwnProperty(row.type)) {
+        requestsByType[row.type] = parseInt(row.count);
+      }
+    });
 
-    } catch (error) {
-        console.error('Update stats error:', error);
-        return NextResponse.json(
-            { error: 'حدث خطأ أثناء تحديث الإحصائيات', details: error.message },
-            { status: 500 }
-        );
+    // الطلبات حسب الحالة
+    const requestsByStatusResult = await query(`
+      SELECT status, COUNT(*) as count
+      FROM prayer_requests
+      GROUP BY status
+    `);
+    const requestsByStatus = { active: 0, completed: 0, expired: 0 };
+    requestsByStatusResult.rows.forEach(row => {
+      if (requestsByStatus.hasOwnProperty(row.status)) {
+        requestsByStatus[row.status] = parseInt(row.count);
+      }
+    });
+
+    // متوسط الدعوات لكل طلب
+    const avgPrayersPerRequestResult = await query(`
+      SELECT COALESCE(ROUND(AVG(prayer_count), 1), 0) as avg
+      FROM prayer_requests
+    `);
+    const avgPrayersPerRequest = parseFloat(avgPrayersPerRequestResult.rows[0].avg) || 0;
+
+    // الطلبات الأكثر دعاءً
+    const topRequestsResult = await query(`
+      SELECT name, type, prayer_count
+      FROM prayer_requests
+      WHERE prayer_count > 0
+      ORDER BY prayer_count DESC
+      LIMIT 5
+    `);
+    const topRequests = topRequestsResult.rows.map(row => ({
+      name: row.name || 'غير معروف',
+      type: row.type,
+      prayerCount: parseInt(row.prayer_count)
+    }));
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ⭐ إحصائيات النجوم
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const starsResult = await query(`
+      SELECT 
+        COALESCE(SUM(total_stars), 0) as total,
+        COALESCE(ROUND(AVG(total_stars), 1), 0) as avg,
+        COALESCE(MAX(total_stars), 0) as max
+      FROM user_stats
+    `);
+    const stars = {
+      total: parseInt(starsResult.rows[0].total) || 0,
+      avg: parseFloat(starsResult.rows[0].avg) || 0,
+      max: parseInt(starsResult.rows[0].max) || 0
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 🔥 إحصائيات التتابع (Streak)
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const streakResult = await query(`
+      SELECT 
+        COALESCE(MAX(daily_streak), 0) as max_current,
+        COALESCE(MAX(max_streak), 0) as all_time_max,
+        COALESCE(ROUND(AVG(daily_streak), 1), 0) as avg
+      FROM user_stats
+    `);
+    const streak = {
+      maxCurrent: parseInt(streakResult.rows[0].max_current) || 0,
+      allTimeMax: parseInt(streakResult.rows[0].all_time_max) || 0,
+      avg: parseFloat(streakResult.rows[0].avg) || 0
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 💎 إحصائيات التوثيق (Verification Badges)
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const badgesResult = await query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE interaction_rate >= 98) as crown,
+        COUNT(*) FILTER (WHERE interaction_rate >= 90 AND interaction_rate < 98) as trophy,
+        COUNT(*) FILTER (WHERE interaction_rate >= 80 AND interaction_rate < 90) as diamond,
+        COUNT(*) FILTER (WHERE interaction_rate < 80) as none
+      FROM user_stats
+    `);
+    const badges = {
+      crown: parseInt(badgesResult.rows[0].crown) || 0,
+      trophy: parseInt(badgesResult.rows[0].trophy) || 0,
+      diamond: parseInt(badgesResult.rows[0].diamond) || 0,
+      none: parseInt(badgesResult.rows[0].none) || 0
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 🏆 المتصدرين (أكثر المستخدمين نشاطاً)
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const topUsersResult = await query(`
+      SELECT 
+        u.id, u.full_name, u.level,
+        us.total_prayers, us.total_stars, us.daily_streak, us.interaction_rate
+      FROM user_stats us
+      JOIN users u ON u.id = us.user_id
+      ORDER BY us.total_prayers DESC
+      LIMIT 5
+    `);
+    const topUsers = topUsersResult.rows.map(row => ({
+      id: row.id,
+      name: row.full_name || 'مستخدم',
+      level: row.level,
+      totalPrayers: parseInt(row.total_prayers) || 0,
+      totalStars: parseInt(row.total_stars) || 0,
+      dailyStreak: parseInt(row.daily_streak) || 0,
+      interactionRate: parseFloat(row.interaction_rate) || 0
+    }));
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ⏰ ساعات الذروة (توزيع الدعوات حسب الساعة)
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const peakHoursResult = await query(`
+      SELECT 
+        EXTRACT(HOUR FROM prayed_at)::int as hour,
+        COUNT(*) as count
+      FROM prayers
+      WHERE prayed_at >= NOW() - INTERVAL '7 days'
+      GROUP BY hour
+      ORDER BY hour
+    `);
+    const peakHours = {};
+    for (let i = 0; i < 24; i++) {
+      peakHours[i] = 0;
     }
-}
+    peakHoursResult.rows.forEach(row => {
+      peakHours[row.hour] = parseInt(row.count);
+    });
 
-// ============================================================================
-// 🎲 دالة القرعة وتوزيع المستويات
-// ============================================================================
-async function checkAndAssignLevels(userId) {
-    try {
-        // جلب نسب التفاعل من جدول level_ratios
-        const ratiosResult = await query(
-            `SELECT level_1, level_2, level_3 
-             FROM level_ratios 
-             ORDER BY id DESC 
-             LIMIT 1`
-        );
-        
-        let ratios = {
-            level1: 70,  // المستوى الأول (3 نجوم + ظهور اسمين)
-            level2: 20, // المستوى الثاني (نجمتين + دعاء مرتين)
-            level3: 10  // المستوى الثالث (نجمة + اختيار آية)
-        };
-        
-        if (ratiosResult.rows.length > 0) {
-            ratios = {
-                level1: ratiosResult.rows[0].level_1,
-                level2: ratiosResult.rows[0].level_2,
-                level3: ratiosResult.rows[0].level_3
-            };
-        }
+    // إيجاد ساعة الذروة
+    let peakHour = 0;
+    let maxCount = 0;
+    Object.entries(peakHours).forEach(([hour, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        peakHour = parseInt(hour);
+      }
+    });
 
-        // التحقق من آخر إنجاز (72 ساعة)
-        const lastAchievementResult = await query(
-            `SELECT achieved_at 
-             FROM achievements 
-             WHERE user_id = $1 
-             ORDER BY achieved_at DESC 
-             LIMIT 1`,
-            [userId]
-        );
+    // ══════════════════════════════════════════════════════════════════════
+    // 🤝 إحصائيات الدعاء الجماعي
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const collectivePrayerResult = await query(`
+      SELECT 
+        COUNT(*) as total_participants,
+        COUNT(DISTINCT user_id) as unique_participants
+      FROM collective_prayer_participants
+    `);
+    const collectivePrayer = {
+      totalParticipants: parseInt(collectivePrayerResult.rows[0].total_participants) || 0,
+      uniqueParticipants: parseInt(collectivePrayerResult.rows[0].unique_participants) || 0
+    };
 
-        if (lastAchievementResult.rows.length > 0) {
-            const lastAchievement = lastAchievementResult.rows[0].achieved_at;
-            const hoursSinceLastAchievement = (Date.now() - new Date(lastAchievement).getTime()) / (1000 * 60 * 60);
-            
-            if (hoursSinceLastAchievement < 72) {
-                return; // لم تمر 72 ساعة بعد
-            }
-        }
+    // عدد جلسات الدعاء الجماعي
+    const collectiveSessionsResult = await query(`
+      SELECT COUNT(*) as count FROM collective_prayer
+    `);
+    collectivePrayer.totalSessions = parseInt(collectiveSessionsResult.rows[0].count) || 0;
 
-        // القرعة العشوائية
-        const randomNumber = Math.random() * 100;
-        
-        let achievementType = null;
-        let starsEarned = 0;
+    // ══════════════════════════════════════════════════════════════════════
+    // 🎰 إحصائيات القرعة
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const lotteryResult = await query(`
+      SELECT 
+        COUNT(*) as total_runs,
+        COALESCE(SUM(winners_count), 0) as total_winners
+      FROM lottery_history
+    `);
+    const lottery = {
+      totalRuns: parseInt(lotteryResult.rows[0].total_runs) || 0,
+      totalWinners: parseInt(lotteryResult.rows[0].total_winners) || 0
+    };
 
-        if (randomNumber < ratios.level1) {
-            // المستوى الأول
-            achievementType = 'name_display';
-            starsEarned = 3;
-        } else if (randomNumber < ratios.level1 + ratios.level2) {
-            // المستوى الثاني
-            achievementType = 'double_prayer';
-            starsEarned = 2;
-        } else if (randomNumber < ratios.level1 + ratios.level2 + ratios.level3) {
-            // المستوى الثالث
-            achievementType = 'verse_selection';
-            starsEarned = 1;
-        }
-
-        // إذا فاز المستخدم
-        if (achievementType) {
-            // إضافة الإنجاز
-            await query(
-                `INSERT INTO achievements (user_id, achievement_type, stars_earned, achieved_at) 
-                 VALUES ($1, $2, $3, NOW())`,
-                [userId, achievementType, starsEarned]
-            );
-
-            // تحديث النجوم والمستوى
-            await query(
-                `UPDATE user_stats 
-                 SET 
-                    total_stars = total_stars + $1,
-                    current_level = CASE 
-                        WHEN $2 = 'name_display' THEN 1
-                        WHEN $2 = 'double_prayer' THEN 2
-                        WHEN $2 = 'verse_selection' THEN 3
-                        ELSE current_level
-                    END,
-                    last_prayer_date = NOW()
-                 WHERE user_id = $3`,
-                [starsEarned, achievementType, userId]
-            );
-        }
-
-    } catch (error) {
-        console.error('Assign levels error:', error);
+    // آخر قرعة
+    const lastLotteryResult = await query(`
+      SELECT lottery_date, winners_count, lottery_type
+      FROM lottery_history
+      ORDER BY lottery_date DESC
+      LIMIT 1
+    `);
+    if (lastLotteryResult.rows.length > 0) {
+      lottery.lastRun = {
+        date: lastLotteryResult.rows[0].lottery_date,
+        winnersCount: lastLotteryResult.rows[0].winners_count,
+        type: lastLotteryResult.rows[0].lottery_type
+      };
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 📈 نسب المستويات (للقرعة)
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const levelRatiosResult = await query(`
+      SELECT level_1, level_2, level_3 FROM level_ratios
+      ORDER BY id DESC LIMIT 1
+    `);
+    const levelRatios = levelRatiosResult.rows[0] || { level_1: 70, level_2: 20, level_3: 10 };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 🏅 إحصائيات الإنجازات
+    // ══════════════════════════════════════════════════════════════════════
+    
+    const achievementsResult = await query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE is_active = true) as active,
+        COUNT(DISTINCT user_id) as users_with_achievements
+      FROM user_achievements
+    `);
+    const achievements = {
+      total: parseInt(achievementsResult.rows[0].total) || 0,
+      active: parseInt(achievementsResult.rows[0].active) || 0,
+      usersWithAchievements: parseInt(achievementsResult.rows[0].users_with_achievements) || 0
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 📊 إرجاع جميع الإحصائيات
+    // ══════════════════════════════════════════════════════════════════════
+    
+    return NextResponse.json({
+      success: true,
+      stats: {
+        users: {
+          total: totalUsers,
+          byLevel: usersByLevel,
+          new: newUsers,
+          active: activeUsers
+        },
+        prayers: {
+          total: prayers.total,
+          today: prayers.today,
+          week: prayers.week,
+          month: prayers.month,
+          avgDaily: avgDailyPrayers
+        },
+        requests: {
+          total: totalRequests,
+          byType: requestsByType,
+          byStatus: requestsByStatus,
+          avgPrayersPerRequest: avgPrayersPerRequest,
+          top: topRequests
+        },
+        stars: stars,
+        streak: streak,
+        badges: badges,
+        topUsers: topUsers,
+        peakHours: {
+          distribution: peakHours,
+          peak: { hour: peakHour, count: maxCount }
+        },
+        collectivePrayer: collectivePrayer,
+        lottery: lottery,
+        levelRatios: {
+          level1: levelRatios.level_1,
+          level2: levelRatios.level_2,
+          level3: levelRatios.level_3
+        },
+        achievements: achievements,
+        // للتوافق مع الكود القديم
+        totalUsers: totalUsers,
+        prayersToday: prayers.today,
+        activeUsers: activeUsers.today,
+        verifiedUsers: { total: usersByLevel.level3 }
+      },
+      lastUpdated: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Stats API error:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ في جلب الإحصائيات', details: error.message },
+      { status: 500 }
+    );
+  }
 }

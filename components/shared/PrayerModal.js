@@ -150,18 +150,18 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
-                اسم الأب أو اسم الأم (اختياري)
+                الشهرة أو اسم الوالد (اختياري)
               </label>
               <input
                 type="text"
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
-                placeholder="اسم والدك أو والدتك"
+                placeholder="الشهرة أو اسم الوالد"
                 className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
-                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+                💡 يمكنك كتابة الشهرة أو اسم العائلة أو اسم الوالد
               </p>
             </div>
 
@@ -299,18 +299,18 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
-                اسم الأب أو اسم الأم (اختياري)
+                الشهرة أو اسم الوالد (اختياري)
               </label>
               <input
                 type="text"
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
-                placeholder="اسم والده أو والدته"
+                placeholder="الشهرة أو اسم الوالد"
                 className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
-                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+                💡 يمكنك كتابة الشهرة أو اسم العائلة أو اسم الوالد
               </p>
             </div>
 
@@ -388,18 +388,18 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
-                اسم الأب أو اسم الأم (اختياري)
+                الشهرة أو اسم الوالد (اختياري)
               </label>
               <input
                 type="text"
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
-                placeholder="اسم والدك أو والدتك"
+                placeholder="الشهرة أو اسم الوالد"
                 className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
-                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+                💡 يمكنك كتابة الشهرة أو اسم العائلة أو اسم الوالد
               </p>
             </div>
 
@@ -474,18 +474,18 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
-                اسم الأب أو اسم الأم (اختياري)
+                الشهرة أو اسم الوالد (اختياري)
               </label>
               <input
                 type="text"
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
-                placeholder="اسم والده أو والدته"
+                placeholder="الشهرة أو اسم الوالد"
                 className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
-                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+                💡 يمكنك كتابة الشهرة أو اسم العائلة أو اسم الوالد
               </p>
             </div>
 
@@ -544,19 +544,19 @@ export default function PrayerModal({
 
             <div>
               <label className="block text-base sm:text-lg font-semibold text-stone-800 mb-2">
-                اسم الأب أو اسم الأم <span className="text-red-500">*</span>
+                الشهرة أو اسم الوالد <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.parentName}
                 onChange={(e) => handleChange('parentName', e.target.value)}
-                placeholder="اسم والده أو والدته"
+                placeholder="الشهرة أو اسم الوالد"
                 required
                 className="w-full h-12 sm:h-14 px-4 border-2 border-stone-300 rounded-xl text-base sm:text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
                 dir="rtl"
               />
               <p className="text-sm text-emerald-700 mt-1 font-semibold">
-                💡 كتابة اسم الأم له فضل عظيم في استجابة الدعاء - "يا فلان بن فلانة"
+                💡 يمكنك كتابة الشهرة أو اسم العائلة أو اسم الوالد
               </p>
             </div>
 

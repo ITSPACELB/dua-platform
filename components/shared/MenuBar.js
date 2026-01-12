@@ -1,10 +1,10 @@
 // ════════════════════════════════════════════════════════════
-// 📱 القائمة الجانبية المحدثة - المرحلة 9
+// 📱 القائمة الجانبية المحدثة - المرحلة 10
 // ════════════════════════════════════════════════════════════
 // التحديثات:
-// ✅ إضافة "المكتبة" في القائمة
-// ✅ إضافة "لوحة الإدارة" (للأدمن فقط)
-// ✅ دمج القوائم القديمة والجديدة
+// ✅ جميع التبويبات قابلة للتحكم من لوحة الأدمن
+// ✅ لوحة الإدارة للأدمن فقط (لا يمكن إخفاؤها)
+// ✅ تسجيل الخروج دائماً مرئي
 // ════════════════════════════════════════════════════════════
 
 import { useState } from 'react';
@@ -12,85 +12,79 @@ import { Menu, Home, User, TrendingUp, Award, BookOpen, Heart, HelpCircle, LogOu
 
 export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsVisibility }) {
   const [showMenu, setShowMenu] = useState(false);
-  
+
   // التحقق من صلاحية الأدمن
   const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') : null;
 
-  // القيم الافتراضية للـ tabsVisibility
-  const tabs = tabsVisibility || {
-    home: true,
-    prayers: true,
-    profile: true,
-    achievements: true,
-    notifications: true
-  };
+  // القيم الافتراضية للـ tabsVisibility (الكل مرئي افتراضياً)
+  const tabs = tabsVisibility || {};
 
   // ═══════════════════════════════════════════════════════════
-  // 📋 عناصر القائمة المحدثة
+  // 📋 عناصر القائمة - جميعها قابلة للتحكم
   // ═══════════════════════════════════════════════════════════
   const menuItems = [
-    // الرئيسية (مشروطة بـ tabsVisibility.home)
-    ...(tabs.home ? [{ 
-      id: 'home', 
-      label: '🏠 الرئيسية', 
-      icon: Home 
+    // الرئيسية
+    ...(tabs.home !== false ? [{
+      id: 'home',
+      label: '🏠 الرئيسية',
+      icon: Home
     }] : []),
-    
-    // الملف الشخصي (مشروط بـ tabsVisibility.profile)
-    ...(tabs.profile ? [{ 
-      id: 'profile', 
-      label: '👤 معلوماتك الشخصية', 
-      icon: User 
+
+    // الملف الشخصي
+    ...(tabs.profile !== false ? [{
+      id: 'profile',
+      label: '👤 معلوماتك الشخصية',
+      icon: User
     }] : []),
-    
-    // الإحصائيات (دائماً مرئي)
-    { 
-      id: 'stats', 
-      label: '📊 إحصائياتك', 
-      icon: TrendingUp 
-    },
-    
-    // الإنجازات (مشروط بـ tabsVisibility.achievements)
-    ...(tabs.achievements ? [{ 
-      id: 'achievements', 
-      label: '🏆 إنجازاتك', 
-      icon: Award 
+
+    // الإحصائيات
+    ...(tabs.stats !== false ? [{
+      id: 'stats',
+      label: '📊 إحصائياتك',
+      icon: TrendingUp
     }] : []),
-    
-    // طلبات الدعاء (دائماً مرئي)
-    { 
-      id: 'prayer-requests', 
-      label: '🤲 طلبات الدعاء', 
-      icon: Heart 
-    },
-    
-    // لوحة الإدارة (للأدمن فقط - دائماً مرئي للأدمن)
+
+    // الإنجازات
+    ...(tabs.achievements !== false ? [{
+      id: 'achievements',
+      label: '🏆 إنجازاتك',
+      icon: Award
+    }] : []),
+
+    // طلبات الدعاء
+    ...(tabs.prayerRequests !== false ? [{
+      id: 'prayer-requests',
+      label: '🤲 طلبات الدعاء',
+      icon: Heart
+    }] : []),
+
+    // لوحة الإدارة (للأدمن فقط - لا يمكن إخفاؤها)
     ...(userRole === 'admin' || userRole === 'super_admin' ? [{
       id: 'admin',
       label: '⚙️ لوحة الإدارة',
       icon: Shield
     }] : []),
-    
-    // المكتبة (دائماً مرئي)
-    { 
-      id: 'library', 
-      label: '📚 المكتبة', 
-      icon: BookOpen 
-    },
-    
-    // من نحن (دائماً مرئي)
-    { 
-      id: 'about', 
-      label: '📄 من نحن', 
-      icon: Heart 
-    },
-    
-    // الأسئلة الشائعة (دائماً مرئي)
-    { 
-      id: 'faq', 
-      label: '❓ الأسئلة الشائعة', 
-      icon: HelpCircle 
-    },
+
+    // المكتبة
+    ...(tabs.library !== false ? [{
+      id: 'library',
+      label: '📚 المكتبة',
+      icon: BookOpen
+    }] : []),
+
+    // من نحن
+    ...(tabs.about !== false ? [{
+      id: 'about',
+      label: '📄 من نحن',
+      icon: Heart
+    }] : []),
+
+    // الأسئلة الشائعة
+    ...(tabs.faq !== false ? [{
+      id: 'faq',
+      label: '❓ الأسئلة الشائعة',
+      icon: HelpCircle
+    }] : []),
   ];
 
   // ═══════════════════════════════════════════════════════════
@@ -119,7 +113,7 @@ export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsV
       <div className="bg-white border-b-2 border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            
+
             {/* زر القائمة */}
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -132,10 +126,10 @@ export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsV
             {/* العنوان */}
             <div className="text-center flex-1">
               <h1 className="text-xl font-bold text-stone-800">
-                منصة يُجيب
+                منصة يُجيب | الدعاء يجمعنا
               </h1>
               <p className="text-sm text-stone-600">
-                مرحباً {user?.displayName || 'ضيف'} 🌟
+                مرحباً {user?.fullName || user?.full_name || 'ضيف'} 🌟
               </p>
             </div>
 
@@ -150,7 +144,7 @@ export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsV
         {showMenu && (
           <>
             {/* خلفية شفافة للإغلاق */}
-            <div 
+            <div
               className="fixed inset-0 bg-black/20 z-40"
               onClick={() => setShowMenu(false)}
             />
@@ -158,7 +152,7 @@ export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsV
             {/* القائمة */}
             <div className="absolute top-full left-0 right-0 bg-white border-b-2 border-stone-200 shadow-xl z-50 animate-slide-down">
               <div className="max-w-4xl mx-auto">
-                
+
                 {/* عناصر القائمة */}
                 {menuItems.map((item) => {
                   const Icon = item.icon;
@@ -167,9 +161,9 @@ export default function MenuBar({ user, currentPage, onNavigate, onLogout, tabsV
                       key={item.id}
                       onClick={() => handleMenuClick(item.id)}
                       className={`
-                        w-full px-6 py-4 text-right 
+                        w-full px-6 py-4 text-right
                         hover:bg-emerald-50 transition-all duration-200
-                        border-b border-stone-100 
+                        border-b border-stone-100
                         flex items-center gap-4
                         ${currentPage === item.id ? 'bg-emerald-100 border-r-4 border-r-emerald-600' : ''}
                       `}

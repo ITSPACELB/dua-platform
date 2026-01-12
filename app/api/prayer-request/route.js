@@ -28,7 +28,8 @@ export async function GET(request) {
         pr.status,
         pr.custom_verse,
         pr.quranic_verse,
-        pr.created_at,
+        pr.created_at, pr.expires_at,
+        pr.expires_at,
         COUNT(p.id) as prayer_count,
         -- ✅ إضافة معلومات المستخدم للشارات
         u.level,
@@ -37,7 +38,7 @@ export async function GET(request) {
       FROM prayer_requests pr
       LEFT JOIN prayers p ON p.request_id = pr.id
       LEFT JOIN users u ON u.id = pr.user_id
-      WHERE pr.status = 'active'
+      WHERE pr.status = 'active' AND (pr.expires_at IS NULL OR pr.expires_at > NOW())
         AND (
           pr.created_at > NOW() - INTERVAL '30 days'
           OR pr.id IN (
@@ -59,9 +60,10 @@ export async function GET(request) {
 
     sql += ` 
       GROUP BY pr.id, pr.user_id, pr.type, pr.name, pr.mother_or_father_name, 
-               pr.purpose, pr.status, pr.custom_verse, pr.quranic_verse, pr.created_at,
+               pr.purpose, pr.status, pr.custom_verse, pr.quranic_verse, pr.created_at, pr.expires_at,
+        pr.expires_at,
                u.level, u.full_name, u.phone_number
-      ORDER BY pr.created_at DESC 
+      ORDER BY COUNT(p.id) ASC, pr.created_at DESC 
       LIMIT $${paramIndex}
     `;
     params.push(limit);

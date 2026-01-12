@@ -1,0 +1,583 @@
+'use client'
+import { useState, useEffect } from 'react';
+import PhoneInput from '../shared/PhoneInput';
+import { countries } from '@/lib/countries';
+import VerificationBadge, { createVerificationLevel } from '@/components/shared/VerificationBadge';
+
+// ════════════════════════════════════════════════════════════
+// 👤 صفحة معلوماتك الشخصية
+// ════════════════════════════════════════════════════════════
+// ✅ متوافق مع نظام Fingerprint
+// ✅ معايير احترافية عالية
+// ✅ يعمل مع UUID
+// ✅ مُصلح: يقرأ user_id من user في localStorage
+// ════════════════════════════════════════════════════════════
+
+export default function ProfileInfoPage({ user }) {
+  const [formData, setFormData] = useState({
+    fullName: '',
+    motherOrFatherName: '',
+    email: '',
+    age: '',
+    country: '',
+    phoneNumber: '',
+    // إحصائيات (للعرض فقط)
+    totalPrayers: 0,
+    totalStars: 0,
+    prayersToday: 0,
+    prayersWeek: 0,
+    prayersMonth: 0,
+    interactionRate: 0,
+    totalRequests: 0,
+    prayersReceived: 0,
+    uniquePeoplePrayed: 0,
+    requestsByType: { personal: { count: 0, prayers: 0 }, friend: { count: 0, prayers: 0 }, deceased: { count: 0, prayers: 0 }, sick: { count: 0, prayers: 0 } },
+  });
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
+  const [isLoading, setIsLoading] = useState(true);
+
+  // ═══════════════════════════════════════════════════════════
+  // 🔧 دالة مساعدة للحصول على user_id
+  // ═══════════════════════════════════════════════════════════
+  const getUserId = () => {
+    // 1. من props
+    if (user?.id) return user.id;
+    
+    // 2. من user في localStorage
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        if (parsed.id) return parsed.id;
+      }
+    } catch (e) {
+      console.error('Error parsing user:', e);
+    }
+    
+    // 3. من user_id مباشرة (احتياطي)
+    const directId = localStorage.getItem('user_id');
+    if (directId) return directId;
+    
+    return null;
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎯 تحميل البيانات الحالية
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const userId = getUserId();
+      
+      if (!userId) {
+        console.warn('⚠️ لا يوجد user_id - المستخدم غير مسجل');
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/users/profile', {
+        headers: {
+          'x-user-id': userId
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.profile) {
+          setFormData({
+            fullName: data.profile.fullName || '',
+            motherOrFatherName: data.profile.motherOrFatherName || '',
+            email: data.profile.email || '',
+            age: data.profile.age || '',
+            country: data.profile.country || '',
+            phoneNumber: data.profile.phoneNumber || '',
+            // إحصائيات
+            totalPrayers: data.profile.totalPrayers || 0,
+            totalStars: data.profile.totalStars || 0,
+            prayersToday: data.profile.prayersToday || 0,
+            prayersWeek: data.profile.prayersWeek || 0,
+            prayersMonth: data.profile.prayersMonth || 0,
+            interactionRate: data.profile.interactionRate || 0,
+            totalRequests: data.profile.totalRequests || 0,
+            prayersReceived: data.profile.prayersReceived || 0,
+            uniquePeoplePrayed: data.profile.uniquePeoplePrayed || 0,
+            requestsByType: data.profile.requestsByType || { personal: { count: 0, prayers: 0 }, friend: { count: 0, prayers: 0 }, deceased: { count: 0, prayers: 0 }, sick: { count: 0, prayers: 0 } }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 📝 معالجة تغيير الحقول
+  // ═══════════════════════════════════════════════════════════
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (saveMessage.text) {
+      setSaveMessage({ type: '', text: '' });
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 💾 حفظ البيانات
+  // ═══════════════════════════════════════════════════════════
+  const handleSave = async (e) => {
+    e.preventDefault();
+    
+    // التحقق من الحقول الإلزامية
+    if (!formData.fullName.trim() || !formData.motherOrFatherName.trim()) {
+      setSaveMessage({
+        type: 'error',
+        text: '⚠️ الاسم الكامل واسم الأم/الأب مطلوبان'
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage({ type: '', text: '' });
+
+    try {
+      let userId = getUserId();
+      
+      // ✅ إذا لم يوجد userId، ننشئ مستخدم جديد
+      if (!userId) {
+        const { getOrCreateFingerprint, saveUserDataWithFingerprint } = await import('@/lib/deviceFingerprint');
+        const fingerprint = getOrCreateFingerprint();
+        
+        if (!fingerprint) {
+          setSaveMessage({
+            type: 'error',
+            text: '❌ فشل توليد معرّف الجهاز'
+          });
+          setIsSaving(false);
+          return;
+        }
+        
+        // إنشاء مستخدم جديد
+        const registerResponse = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fingerprint,
+            full_name: formData.fullName.trim(),
+            mother_or_father_name: formData.motherOrFatherName.trim(),
+            phone_number: formData.phoneNumber || null,
+            email: formData.email || null,
+            age: formData.age || null,
+            country: formData.country || null
+          })
+        });
+        
+        if (!registerResponse.ok) {
+          const error = await registerResponse.json();
+          setSaveMessage({
+            type: 'error',
+            text: `❌ ${error.error || 'فشل إنشاء الحساب'}`
+          });
+          setIsSaving(false);
+          return;
+        }
+        
+        const registerData = await registerResponse.json();
+        
+        if (registerData.user) {
+          // حفظ في localStorage
+          saveUserDataWithFingerprint(registerData.user);
+          userId = registerData.user.id;
+        }
+      }
+      
+      // الآن نحدث البيانات
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify({
+          fullName: formData.fullName.trim(),
+          motherOrFatherName: formData.motherOrFatherName.trim(),
+          email: formData.email || null,
+          age: formData.age || null,
+          country: formData.country || null,
+          phoneNumber: formData.phoneNumber || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSaveMessage({
+          type: 'success',
+          text: '✅ تم حفظ معلوماتك بنجاح!'
+        });
+        
+        // تحديث localStorage
+        const { saveUserDataWithFingerprint } = await import('@/lib/deviceFingerprint');
+        if (data.profile) {
+          saveUserDataWithFingerprint(data.profile);
+        }
+        
+        // إعادة تحميل البيانات
+        setTimeout(() => {
+          loadUserProfile();
+        }, 1000);
+      } else {
+        setSaveMessage({
+          type: 'error',
+          text: `❌ ${data.error || 'فشل في حفظ البيانات'}`
+        });
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setSaveMessage({
+        type: 'error',
+        text: '❌ حدث خطأ في الاتصال بالخادم'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // ⏳ شاشة التحميل
+  // ═══════════════════════════════════════════════════════════
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-spin">⏳</div>
+          <p className="text-xl text-stone-600">جاري تحميل معلوماتك...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎨 واجهة المستخدم
+  // ═══════════════════════════════════════════════════════════
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 to-emerald-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        
+        {/* زر العودة */}
+        <div className="mb-6">
+          <button
+            onClick={() => window.location.href = '/'}
+            className="flex items-center gap-2 text-stone-600 hover:text-emerald-600 transition-colors text-lg font-semibold"
+          >
+            <span className="text-2xl">←</span>
+            <span>العودة للصفحة الرئيسية</span>
+          </button>
+        </div>
+        
+        {/* العنوان */}
+        <div className="text-center mb-8">
+          <div className="text-6xl mb-4">👤</div>
+          <h1 className="text-4xl font-bold text-stone-800 mb-2">
+            معلوماتك الشخصية
+          </h1>
+          <p className="text-lg text-stone-600">
+            قم بتحديث بياناتك للحصول على تجربة أفضل
+          </p>
+        </div>
+
+          {/* قسم الإحصائيات - محسّن */}
+          {!isLoading && (
+            <div className="bg-white rounded-3xl border-2 border-stone-200 shadow-xl p-6 mb-6">
+              
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <h2 className="text-2xl font-bold text-stone-800">📊 إحصائياتك</h2>
+                {formData.interactionRate >= 80 && (
+                  <VerificationBadge
+                    level={createVerificationLevel(formData.interactionRate)}
+                    size="lg"
+                    showTooltip={true}
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-4 text-center border-2 border-emerald-200">
+                  <div className="text-4xl mb-2">🤲</div>
+                  <div className="text-3xl font-bold text-emerald-700">{formData.totalPrayers || 0}</div>
+                  <div className="text-sm text-emerald-600 font-semibold mt-1">دعوة كلية</div>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 text-center border-2 border-blue-200">
+                  <div className="text-4xl mb-2">📅</div>
+                  <div className="text-3xl font-bold text-blue-700">{formData.prayersToday || 0}</div>
+                  <div className="text-sm text-blue-600 font-semibold mt-1">دعوات اليوم</div>
+                </div>
+
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-4 text-center border-2 border-amber-200">
+                  <div className="text-4xl mb-2">📊</div>
+                  <div className="text-3xl font-bold text-amber-700">{formData.prayersWeek || 0}</div>
+                  <div className="text-sm text-amber-600 font-semibold mt-1">دعوات الأسبوع</div>
+                </div>
+
+                <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-2xl p-4 text-center border-2 border-pink-200">
+                  <div className="text-4xl mb-2">📆</div>
+                  <div className="text-3xl font-bold text-pink-700">{formData.prayersMonth || 0}</div>
+                  <div className="text-sm text-pink-600 font-semibold mt-1">دعوات الشهر</div>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4 text-center border-2 border-purple-200">
+                  <div className="text-4xl mb-2">⭐</div>
+                  <div className="text-3xl font-bold text-purple-700">{formData.totalStars || 0}</div>
+                  <div className="text-sm text-purple-600 font-semibold mt-1">النجوم</div>
+                </div>
+              </div>
+
+              {formData.interactionRate > 0 && (
+                <div className="mt-4 pt-4 border-t-2 border-stone-200">
+                  <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4 border-2 border-teal-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="text-sm text-teal-600 font-semibold mb-1">نسبة التفاعل</div>
+                        <div className="text-3xl font-bold text-teal-700">{formData.interactionRate}%</div>
+                      </div>
+                      <div className="text-5xl">📈</div>
+                    </div>
+                    {formData.interactionRate >= 80 && (
+                      <div className="mt-3 pt-3 border-t border-teal-200">
+                        <div className="flex items-start gap-2">
+                          <div className="text-2xl">
+                            {formData.interactionRate >= 98 ? '👑' : formData.interactionRate >= 90 ? '🏆' : '💎'}
+                          </div>
+                          <div className="text-xs text-teal-700 leading-relaxed">
+                            <span className="font-bold">
+                              {formData.interactionRate >= 98 ? 'مستوى التاج الملكي' : formData.interactionRate >= 90 ? 'مستوى الكأس الذهبي' : 'مستوى الماسة الزرقاء'}
+                            </span>
+                            {' - '}
+                            <span>
+                              {formData.interactionRate >= 98 
+                                ? 'تهانينا! أنت في أعلى مستوى. استمر في تفاعلك الإيجابي!'
+                                : formData.interactionRate >= 90 
+                                ? 'رائع! أنت قريب من المستوى الأعلى. استمر!'
+                                : 'ممتاز! استمر في التفاعل الإيجابي للوصول للمستوى التالي'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
+
+
+          {/* 🤲 قسم الدعوات المستلمة */}
+          {(formData.totalRequests > 0 || formData.prayersReceived > 0) && (
+            <div className="bg-white rounded-3xl border-2 border-stone-200 shadow-xl p-6 mb-6">
+              <h3 className="text-xl font-bold text-stone-800 text-center mb-4">🤲 الدعوات التي استلمتها</h3>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-2xl p-4 text-center border-2 border-rose-200">
+                  <div className="text-3xl mb-2">📋</div>
+                  <div className="text-2xl font-bold text-rose-700">{formData.totalRequests || 0}</div>
+                  <div className="text-xs text-rose-600 font-semibold mt-1">طلبات دعاء</div>
+                </div>
+                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-2xl p-4 text-center border-2 border-indigo-200">
+                  <div className="text-3xl mb-2">💜</div>
+                  <div className="text-2xl font-bold text-indigo-700">{formData.prayersReceived || 0}</div>
+                  <div className="text-xs text-indigo-600 font-semibold mt-1">دعوة مستلمة</div>
+                </div>
+                <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-2xl p-4 text-center border-2 border-cyan-200">
+                  <div className="text-3xl mb-2">👥</div>
+                  <div className="text-2xl font-bold text-cyan-700">{formData.uniquePeoplePrayed || 0}</div>
+                  <div className="text-xs text-cyan-600 font-semibold mt-1">شخص دعا لك</div>
+                </div>
+              </div>
+              {formData.requestsByType && (
+                <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-2xl p-4 border-2 border-stone-200">
+                  <h4 className="text-sm font-bold text-stone-700 text-center mb-3">📊 تفصيل حسب النوع</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className="bg-white rounded-xl p-3 text-center border border-blue-200">
+                      <div className="text-xl mb-1">🤲</div>
+                      <div className="text-lg font-bold text-blue-700">{formData.requestsByType.personal?.prayers || 0}</div>
+                      <div className="text-xs text-blue-600">شخصي</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 text-center border border-green-200">
+                      <div className="text-xl mb-1">👥</div>
+                      <div className="text-lg font-bold text-green-700">{formData.requestsByType.friend?.prayers || 0}</div>
+                      <div className="text-xs text-green-600">لصديق</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 text-center border border-stone-300">
+                      <div className="text-xl mb-1">🕊️</div>
+                      <div className="text-lg font-bold text-stone-700">{formData.requestsByType.deceased?.prayers || 0}</div>
+                      <div className="text-xs text-stone-600">لمتوفى</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 text-center border border-red-200">
+                      <div className="text-xl mb-1">🏥</div>
+                      <div className="text-lg font-bold text-red-700">{formData.requestsByType.sick?.prayers || 0}</div>
+                      <div className="text-xs text-red-600">لمريض</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+        {/* النموذج */}
+        <form onSubmit={handleSave} className="bg-white rounded-3xl border-2 border-stone-200 shadow-xl p-8">
+          <div className="space-y-6">
+            
+            {/* الاسم الكامل */}
+            <div>
+              <label className="block text-lg font-bold text-stone-800 mb-2">
+                الاسم الكامل <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.fullName}
+                onChange={(e) => handleChange('fullName', e.target.value)}
+                placeholder="أدخل اسمك الكامل"
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="rtl"
+              />
+            </div>
+
+            {/* اسم الأم أو الأب */}
+            <div>
+              <label className="block text-lg font-bold text-stone-800 mb-2">
+                اسم الأم أو الأب <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.motherOrFatherName}
+                onChange={(e) => handleChange('motherOrFatherName', e.target.value)}
+                placeholder="مثال: فاطمة أو محمد"
+                required
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="rtl"
+              />
+              <p className="text-sm text-stone-500 mt-2">
+                💡 يُفضل اسم الأم للدعاء، لكن يمكنك إدخال اسم الأب
+              </p>
+            </div>
+
+            {/* البريد الإلكتروني */}
+            <div>
+              <label className="block text-lg font-bold text-stone-800 mb-2">
+                البريد الإلكتروني (اختياري)
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange('email', e.target.value)}
+                placeholder="example@email.com"
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="ltr"
+                style={{ textAlign: 'left' }}
+              />
+            </div>
+
+            {/* العمر */}
+            <div>
+              <label className="block text-lg font-bold text-stone-800 mb-2">
+                العمر (اختياري)
+              </label>
+              <input
+                type="number"
+                value={formData.age}
+                onChange={(e) => handleChange('age', e.target.value)}
+                placeholder="مثال: 25"
+                min="1"
+                max="120"
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all"
+                dir="ltr"
+                style={{ textAlign: 'left' }}
+              />
+            </div>
+
+            {/* الدولة */}
+            <div>
+              <label className="block text-lg font-bold text-stone-800 mb-2">
+                الدولة (اختياري)
+              </label>
+              <select
+                value={formData.country}
+                onChange={(e) => handleChange('country', e.target.value)}
+                className="w-full h-14 px-4 border-2 border-stone-300 rounded-xl text-lg font-medium focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition-all bg-white"
+                dir="rtl"
+              >
+                <option value="">اختر دولتك</option>
+                {countries.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* رقم الهاتف */}
+            <div>
+              <label className="block text-lg font-bold text-stone-800 mb-2">
+                رقم الهاتف (اختياري)
+              </label>
+              <PhoneInput
+                value={formData.phoneNumber}
+                onChange={(value) => handleChange('phoneNumber', value)}
+              />
+            </div>
+
+          </div>
+
+          {/* رسالة الحفظ */}
+          {saveMessage.text && (
+            <div className={`mt-6 p-4 rounded-xl border-2 ${
+              saveMessage.type === 'success' 
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800' 
+                : 'bg-red-50 border-red-300 text-red-800'
+            }`}>
+              <p className="text-lg font-semibold text-center">
+                {saveMessage.text}
+              </p>
+            </div>
+          )}
+
+          {/* زر الحفظ */}
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full h-16 mt-8 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-2xl font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+          >
+            {isSaving ? (
+              <>
+                <span className="animate-spin text-3xl">⏳</span>
+                <span>جاري الحفظ...</span>
+              </>
+            ) : (
+              <>
+                <span className="text-3xl">💾</span>
+                <span>حفظ المعلومات</span>
+              </>
+            )}
+          </button>
+
+          {/* ملاحظة */}
+          <div className="mt-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
+            <p className="text-base text-amber-800 text-center">
+              ℹ️ معلوماتك آمنة ومحمية. سيتم استخدامها فقط لتحسين تجربتك في المنصة
+            </p>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  );
+}

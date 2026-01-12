@@ -1,7 +1,7 @@
 {
-  "name": "يُجيب - منصة الدعاء الجماعي",
-  "short_name": "يُجيب",
-  "description": "منصة إسلامية تجمع المؤمنين من كل أنحاء العالم للدعاء المشترك",
+  "name": "Yojeeb - منصة الدعاء الجماعي",
+  "short_name": "Yojeeb",
+  "description": "منصة دعاء تجمع الناس من كل أنحاء العالم للدعاء المشترك",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -15,65 +15,55 @@
       "src": "/icon-72.png",
       "sizes": "72x72",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-96.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-128.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-144.png",
       "sizes": "144x144",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-152.png",
       "sizes": "152x152",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-384.png",
       "sizes": "384x384",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshot-1.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "الصفحة الرئيسية"
+      "purpose": "any"
     },
     {
-      "src": "/screenshot-2.png",
-      "sizes": "1280x720",
+      "src": "/icon-1024.png",
+      "sizes": "1024x1024",
       "type": "image/png",
-      "form_factor": "wide",
-      "label": "لوحة الدعاء"
+      "purpose": "any"
     }
   ],
   "categories": ["lifestyle", "productivity", "social"],
@@ -90,31 +80,7 @@
           "type": "image/png"
         }
       ]
-    },
-    {
-      "name": "الإحصائيات",
-      "short_name": "إحصائيات",
-      "description": "عرض إحصائيات الدعاء",
-      "url": "/stats",
-      "icons": [
-        {
-          "src": "/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
     }
   ],
-  "prefer_related_applications": false,
-  "related_applications": [],
-  "share_target": {
-    "action": "/share",
-    "method": "GET",
-    "enctype": "application/x-www-form-urlencoded",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
-  }
+  "prefer_related_applications": false
 }

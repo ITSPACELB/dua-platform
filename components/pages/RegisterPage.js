@@ -155,7 +155,7 @@ export default function RegisterPage({ onRegister, onSwitchToLogin }) {
               />
             </div>
 
-            {/* اسم الأم */}
+            {/* الشهرة أو اسم الوالد */}
             <div>
               <label className="block text-stone-700 font-bold mb-3 text-xl">
                 اسم والدتك *

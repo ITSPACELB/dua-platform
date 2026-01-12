@@ -1,0 +1,52 @@
+                                      Table "public.users"
+        Column         |            Type             | Collation | Nullable |      Default      
+-----------------------+-----------------------------+-----------+----------+-------------------
+ id                    | uuid                        |           | not null | gen_random_uuid()
+ full_name             | text                        |           |          | 
+ mother_or_father_name | text                        |           |          | 
+ phone_number          | text                        |           |          | 
+ country_code          | text                        |           |          | 
+ email                 | text                        |           |          | 
+ country               | text                        |           |          | 
+ age                   | integer                     |           |          | 
+ gender                | text                        |           |          | 
+ device_fingerprint    | text                        |           |          | 
+ is_anonymous          | boolean                     |           |          | true
+ created_at            | timestamp without time zone |           |          | now()
+ updated_at            | timestamp without time zone |           |          | now()
+ level                 | integer                     |           |          | 1
+ last_achievement_date | timestamp without time zone |           |          | 
+ is_mock_data          | boolean                     |           |          | false
+Indexes:
+    "users_pkey" PRIMARY KEY, btree (id)
+    "idx_users_created" btree (created_at DESC)
+    "idx_users_fingerprint" btree (device_fingerprint)
+    "idx_users_last_achievement" btree (last_achievement_date DESC)
+    "idx_users_level" btree (level)
+    "idx_users_mock_data" btree (is_mock_data) WHERE is_mock_data = true
+    "idx_users_phone" btree (phone_number)
+    "users_device_fingerprint_key" UNIQUE CONSTRAINT, btree (device_fingerprint)
+Check constraints:
+    "users_gender_check" CHECK (gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text]))
+    "users_level_check" CHECK (level = ANY (ARRAY[1, 2, 3]))
+Referenced by:
+    TABLE "achievement_settings" CONSTRAINT "achievement_settings_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+    TABLE "achievements" CONSTRAINT "achievements_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "admin_users" CONSTRAINT "admin_users_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    TABLE "badge_audit_log" CONSTRAINT "badge_audit_log_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "badge_notifications" CONSTRAINT "badge_notifications_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "collective_prayer_participants" CONSTRAINT "collective_prayer_participants_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id)
+    TABLE "lottery_history" CONSTRAINT "lottery_history_admin_id_fkey" FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
+    TABLE "notifications" CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "prayer_requests" CONSTRAINT "prayer_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    TABLE "prayers" CONSTRAINT "prayers_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "selected_verses" CONSTRAINT "selected_verses_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "user_achievements" CONSTRAINT "user_achievements_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "user_points" CONSTRAINT "user_points_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "user_stats" CONSTRAINT "user_stats_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "win_history" CONSTRAINT "win_history_admin_id_fkey" FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
+    TABLE "win_history" CONSTRAINT "win_history_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+Triggers:
+    trigger_update_user_level AFTER INSERT OR UPDATE OF full_name, mother_or_father_name, phone_number ON users FOR EACH ROW EXECUTE FUNCTION update_user_level()
+    update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+

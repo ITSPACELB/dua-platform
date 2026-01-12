@@ -350,10 +350,10 @@ export default function MyAccount() {
                 />
               </div>
 
-              {/* اسم الأم أو الأب */}
+              {/* الشهرة أو اسم الوالد */}
               <div>
                 <label className="block text-stone-700 font-semibold mb-2 text-xl">
-                  اسم الأم أو الأب (اختياري)
+                  الشهرة أو اسم الوالد (اختياري)
                 </label>
                 <div className="flex gap-2 mb-2">
                   <button
@@ -363,7 +363,7 @@ export default function MyAccount() {
                       loginForm.isMotherName ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
                     }`}
                   >
-                    اسم الأم
+                    الشهرة
                   </button>
                   <button
                     type="button"
@@ -372,7 +372,7 @@ export default function MyAccount() {
                       !loginForm.isMotherName ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
                     }`}
                   >
-                    اسم الأب
+                    اسم الوالد
                   </button>
                 </div>
                 <input
@@ -380,10 +380,10 @@ export default function MyAccount() {
                   value={loginForm.parentName}
                   onChange={(e) => setLoginForm({ ...loginForm, parentName: e.target.value })}
                   className="w-full px-4 py-4 border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:outline-none text-xl"
-                  placeholder={loginForm.isMotherName ? "اسم الأم..." : "اسم الأب..."}
+                  placeholder="الشهرة أو اسم الوالد..."
                 />
                 <p className="text-sm text-emerald-700 mt-2 font-semibold">
-                  💡 إدخال اسم الوالد يمنحك فرصة الدخول في القرعة والفوز بالمميزات
+                  💡 إدخال الشهرة أو اسم الوالد يمنحك مميزات إضافية
                 </p>
               </div>
 
@@ -591,7 +591,7 @@ export default function MyAccount() {
                 <div className="flex items-center gap-3 text-lg">
                   <Heart className="text-stone-500" size={24} />
                   <span className="text-stone-700">
-                    {user.is_mother_name ? 'الأم: ' : 'الأب: '}
+                    الشهرة: 
                     {user.mother_or_father_name}
                   </span>
                 </div>
@@ -633,7 +633,7 @@ export default function MyAccount() {
               </div>
 
               <div>
-                <label className="block text-stone-700 font-semibold mb-2">اسم الأم أو الأب</label>
+                <label className="block text-stone-700 font-semibold mb-2">الشهرة أو اسم الوالد</label>
                 <div className="flex gap-2 mb-2">
                   <button
                     type="button"
@@ -642,7 +642,7 @@ export default function MyAccount() {
                       editForm.is_mother_name ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
                     }`}
                   >
-                    اسم الأم
+                    الشهرة
                   </button>
                   <button
                     type="button"
@@ -651,7 +651,7 @@ export default function MyAccount() {
                       !editForm.is_mother_name ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
                     }`}
                   >
-                    اسم الأب
+                    اسم الوالد
                   </button>
                 </div>
                 <input

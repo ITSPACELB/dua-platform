@@ -180,7 +180,7 @@ export default function LoginPage({ onLogin, onSwitchToRegister }) {
 
             <div>
               <label className="block text-stone-800 font-medium mb-2">
-                اسم الأم
+                الشهرة أو اسم الوالد
               </label>
               <input
                 type="text"

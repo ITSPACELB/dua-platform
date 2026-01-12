@@ -1,54 +1,93 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+// ⚡ جعل الـ API dynamic (ليس cached)
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // ════════════════════════════════════════════════════════════
 // 📥 GET - جلب جميع إعدادات المنصة
 // ════════════════════════════════════════════════════════════
 export async function GET() {
   try {
     // ════════════════════════════════════════════════════════
-    // 🎨 جلب البانر
+    // 📦 جلب كل الإعدادات من platform_settings
     // ════════════════════════════════════════════════════════
+    const platformSettingsResult = await query(
+      `SELECT key, value FROM platform_settings`
+    );
+
+    const platformSettings = {};
+    platformSettingsResult.rows.forEach(row => {
+      try {
+        platformSettings[row.key] = JSON.parse(row.value);
+      } catch {
+        platformSettings[row.key] = row.value;
+      }
+    });
+
+    // ════════════════════════════════════════════════════════
+    // 🎨 البانر - النص والحالة من جدول banner، الألوان من platform_settings
+    // ════════════════════════════════════════════════════════
+    let banner = {
+      active: false,
+      text: '',
+      link: '',
+      backgroundColor: '#10b981',
+      textColor: '#ffffff'
+    };
+
+    // جلب البانر من الجدول (النص والحالة)
     const bannerResult = await query(
-      `SELECT content, link, is_active 
-       FROM banner 
-       WHERE is_active = true 
-       ORDER BY created_at DESC 
+      `SELECT content, link, is_active
+       FROM banner
+       ORDER BY updated_at DESC
        LIMIT 1`
     );
 
-    const banner = bannerResult.rows.length > 0 
-      ? {
-          active: bannerResult.rows[0].is_active,
-          text: bannerResult.rows[0].content,
-          link: bannerResult.rows[0].link
-        }
-      : { active: false, text: '', link: '' };
+    if (bannerResult.rows.length > 0) {
+      const dbBanner = bannerResult.rows[0];
+      banner.active = dbBanner.is_active || false;
+      banner.text = dbBanner.content || '';
+      banner.link = dbBanner.link || '';
+    }
+
+    // جلب الألوان من platform_settings
+    if (platformSettings.banner) {
+      banner.backgroundColor = platformSettings.banner.backgroundColor || '#10b981';
+      banner.textColor = platformSettings.banner.textColor || '#ffffff';
+    }
 
     // ════════════════════════════════════════════════════════
-    // 💡 جلب التوعية
+    // 💡 التوعية - من جدول awareness
     // ════════════════════════════════════════════════════════
+    let awareness = {
+      active: false,
+      text: '',
+      link: [],
+      links: []
+    };
+
     const awarenessResult = await query(
-      `SELECT content, link, is_active 
-       FROM awareness 
-       WHERE is_active = true 
-       ORDER BY created_at DESC 
+      `SELECT content, link, is_active
+       FROM awareness
+       ORDER BY updated_at DESC
        LIMIT 1`
     );
 
-    const awareness = awarenessResult.rows.length > 0
-      ? {
-          active: awarenessResult.rows[0].is_active,
-          text: awarenessResult.rows[0].content,
-          link: awarenessResult.rows[0].link
-        }
-      : { active: false, text: '', link: '' };
+    if (awarenessResult.rows.length > 0) {
+      const dbAwareness = awarenessResult.rows[0];
+      awareness.active = dbAwareness.is_active || false;
+      awareness.text = dbAwareness.content || '';
+      awareness.link = dbAwareness.link || [];
+      awareness.links = dbAwareness.link || [];
+    }
 
     // ════════════════════════════════════════════════════════
-    // 🤲 جلب الدعاء الجماعي
+    // 🤲 الدعاء الجماعي - بدون أي تغيير (يعمل بنجاح)
     // ════════════════════════════════════════════════════════
     const collectivePrayerResult = await query(
-      `SELECT 
+      `SELECT
         id,
         type,
         content,
@@ -66,12 +105,11 @@ export async function GET() {
 
     if (collectivePrayerResult.rows.length > 0) {
       const prayer = collectivePrayerResult.rows[0];
-      
-      // تحديد حالة الدعاء (waiting/active/ended)
+
       const now = new Date();
       const scheduledTime = prayer.scheduled_datetime ? new Date(prayer.scheduled_datetime) : null;
-      const endTime = scheduledTime 
-        ? new Date(scheduledTime.getTime() + (prayer.duration_minutes || 30) * 60000) 
+      const endTime = scheduledTime
+        ? new Date(scheduledTime.getTime() + (prayer.duration_minutes || 30) * 60000)
         : null;
 
       let status = 'active';
@@ -83,10 +121,9 @@ export async function GET() {
         }
       }
 
-      // جلب عدد المشاركين
       const participantsResult = await query(
-        `SELECT COUNT(DISTINCT user_id) as count 
-         FROM collective_prayer_participants 
+        `SELECT COUNT(DISTINCT user_id) as count
+         FROM collective_prayer_participants
          WHERE prayer_id = $1`,
         [prayer.id]
       );
@@ -105,14 +142,40 @@ export async function GET() {
     }
 
     // ════════════════════════════════════════════════════════
-    // 📱 إعدادات إضافية (يمكن إضافتها لاحقاً)
+    // 📱 التبويبات - من platform_settings
     // ════════════════════════════════════════════════════════
-    const tabsVisibility = {
+    let tabsVisibility = {
       home: true,
       requests: true,
       stats: true,
-      profile: true
+      profile: true,
+      prayers: true,
+      achievements: true,
+      notifications: true
     };
+
+    if (platformSettings.tabs_visibility) {
+      tabsVisibility = {
+        ...tabsVisibility,
+        ...platformSettings.tabs_visibility
+      };
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 🔔 الإشعارات - من platform_settings
+    // ════════════════════════════════════════════════════════
+    let notifications = {
+      pushEnabled: false,
+      emailEnabled: false,
+      smsEnabled: false
+    };
+
+    if (platformSettings.notifications) {
+      notifications = {
+        ...notifications,
+        ...platformSettings.notifications
+      };
+    }
 
     // ════════════════════════════════════════════════════════
     // ✅ إرجاع جميع الإعدادات
@@ -122,20 +185,21 @@ export async function GET() {
       banner,
       awareness,
       collectivePrayer,
-      tabsVisibility
+      tabsVisibility,
+      notifications
     });
 
   } catch (error) {
     console.error('GET /api/settings error:', error);
-    
-    // إرجاع إعدادات افتراضية في حالة الخطأ
+
     return NextResponse.json({
       success: false,
       error: error.message,
-      banner: { active: false, text: '', link: '' },
-      awareness: { active: false, text: '', link: '' },
+      banner: { active: false, text: '', link: '', backgroundColor: '#10b981', textColor: '#ffffff' },
+      awareness: { active: false, text: '', link: [], links: [] },
       collectivePrayer: null,
-      tabsVisibility: { home: true, requests: true, stats: true, profile: true }
+      tabsVisibility: { home: true, requests: true, stats: true, profile: true },
+      notifications: { pushEnabled: false, emailEnabled: false, smsEnabled: false }
     }, { status: 500 });
   }
 }

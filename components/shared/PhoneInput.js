@@ -74,7 +74,7 @@ export default function PhoneInput({
     setPhoneNumber(input);
     
     // إرجاع الرقم الكامل مع كود الدولة
-    const fullNumber = `${selectedCountry.dialCode} ${input}`.trim();
+    const fullNumber = `${selectedCountry.dialCode}${input.replace(/\s+/g, '')}`;
     onChange(fullNumber);
   };
 
@@ -87,7 +87,7 @@ export default function PhoneInput({
     setSearchQuery('');
     
     // تحديث الرقم الكامل
-    const fullNumber = `${country.dialCode} ${phoneNumber}`.trim();
+    const fullNumber = `${country.dialCode}${phoneNumber.replace(/\s+/g, '')}`;
     onChange(fullNumber);
   };
 

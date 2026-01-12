@@ -44,7 +44,7 @@ export default function ScheduledNotifications() {
   // 🌐 جلب قائمة الإشعارات المجدولة
   // ============================================================================
   const fetchScheduledNotifications = async () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
@@ -117,7 +117,7 @@ export default function ScheduledNotifications() {
       return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
@@ -186,7 +186,7 @@ export default function ScheduledNotifications() {
       return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
@@ -211,7 +211,7 @@ export default function ScheduledNotifications() {
   // 🔄 تفعيل/إيقاف إشعار مجدول
   // ============================================================================
   const toggleActive = async (id, currentStatus) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {

@@ -43,12 +43,18 @@ export default function AdminSettingsPanel() {
 
   const [tabsSettings, setTabsSettings] = useState({
     home: true,
-    prayers: true,
     profile: true,
+    stats: true,
     achievements: true,
+    prayerRequests: true,
+    library: true,
+    about: true,
+    faq: true,
     notifications: true
+  
   });
 
+  const [newLink, setNewLink] = useState({ title: '', url: '' });
   // ════════════════════════════════════════════════════════════
   // 📡 جلب الإعدادات عند التحميل
   // ════════════════════════════════════════════════════════════
@@ -59,7 +65,7 @@ export default function AdminSettingsPanel() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/settings', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -75,28 +81,16 @@ export default function AdminSettingsPanel() {
 
           // ✅ تحديث الحالات المحلية بشكل آمن
           if (settingsObj.banner?.value) {
-            setBannerSettings(prev => ({
-              ...prev,
-              ...settingsObj.banner.value
-            }));
+            setBannerSettings(settingsObj.banner.value);
           }
           if (settingsObj.awareness?.value) {
-            setAwarenessSettings(prev => ({
-              ...prev,
-              ...settingsObj.awareness.value
-            }));
+            setAwarenessSettings(settingsObj.awareness.value);
           }
           if (settingsObj.notifications?.value) {
-            setNotificationSettings(prev => ({
-              ...prev,
-              ...settingsObj.notifications.value
-            }));
+            setNotificationSettings(settingsObj.notifications.value);
           }
           if (settingsObj.tabs_visibility?.value) {
-            setTabsSettings(prev => ({
-              ...prev,
-              ...settingsObj.tabs_visibility.value
-            }));
+            setTabsSettings(prev => ({ ...prev, ...settingsObj.tabs_visibility.value }));
           }
         }
       }
@@ -114,7 +108,7 @@ export default function AdminSettingsPanel() {
   const saveSetting = async (key, value) => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: {
@@ -215,7 +209,7 @@ export default function AdminSettingsPanel() {
             </label>
             <textarea
               value={bannerSettings.text}
-              onChange={handleTextChange}
+              onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))}
               rows="3"
               className="w-full px-4 py-3 border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all resize-none"
               placeholder="أدخل نص البانر..."
@@ -307,7 +301,6 @@ export default function AdminSettingsPanel() {
   // 💡 مكون التوعية - ✅ مُحسّن
   // ════════════════════════════════════════════════════════════
   const AwarenessSection = () => {
-    const [newLink, setNewLink] = useState({ title: '', url: '' });
 
     // ✅ Handler منفصل لتجنب مشكلة الكتابة
     const handleContentChange = (e) => {
@@ -373,7 +366,7 @@ export default function AdminSettingsPanel() {
           </label>
           <textarea
             value={awarenessSettings.content}
-            onChange={handleContentChange}
+            onChange={(e) => setAwarenessSettings(prev => ({ ...prev, content: e.target.value }))}
             rows="4"
             className="w-full px-4 py-3 border-2 border-stone-300 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all resize-none"
             placeholder="أدخل محتوى التوعية..."
@@ -565,9 +558,13 @@ export default function AdminSettingsPanel() {
   const TabsSection = () => {
     const tabs = [
       { key: 'home', icon: '🏠', label: 'الصفحة الرئيسية', description: 'عرض الدعوات والبانر' },
-      { key: 'prayers', icon: '🤲', label: 'الدعوات', description: 'صفحة الدعوات المطلوبة' },
-      { key: 'profile', icon: '👤', label: 'الملف الشخصي', description: 'معلومات المستخدم' },
-      { key: 'achievements', icon: '🏆', label: 'الإنجازات', description: 'الشارات والجوائز' },
+      { key: 'profile', icon: '👤', label: 'معلوماتك الشخصية', description: 'معلومات المستخدم' },
+      { key: 'stats', icon: '📊', label: 'إحصائياتك', description: 'إحصائيات الدعاء' },
+      { key: 'achievements', icon: '🏆', label: 'إنجازاتك', description: 'الشارات والجوائز' },
+      { key: 'prayerRequests', icon: '🤲', label: 'طلبات الدعاء', description: 'طلبات الدعاء المرسلة' },
+      { key: 'library', icon: '📚', label: 'المكتبة', description: 'مكتبة الأدعية والأذكار' },
+      { key: 'about', icon: '📄', label: 'من نحن', description: 'معلومات عن المنصة' },
+      { key: 'faq', icon: '❓', label: 'الأسئلة الشائعة', description: 'إجابات على الأسئلة المتكررة' },
       { key: 'notifications', icon: '🔔', label: 'الإشعارات', description: 'إشعارات التطبيق' }
     ];
 
@@ -741,8 +738,8 @@ export default function AdminSettingsPanel() {
 
       {/* المحتوى */}
       <div className="bg-white rounded-2xl border-2 border-stone-200 p-8 shadow-lg">
-        {activeSection === 'banner' && <BannerSection />}
-        {activeSection === 'awareness' && <AwarenessSection />}
+        {activeSection === 'banner' && BannerSection()}
+        {activeSection === 'awareness' && AwarenessSection()}
         {activeSection === 'notifications' && <NotificationsSection />}
         {activeSection === 'tabs' && <TabsSection />}
       </div>

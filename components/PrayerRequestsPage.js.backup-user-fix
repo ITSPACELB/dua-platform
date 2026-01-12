@@ -1,0 +1,528 @@
+'use client'
+import { useState, useEffect } from 'react';
+import { ArrowRight, Search, Filter } from 'lucide-react';
+import PrayerCard from './shared/PrayerCard';
+import { quranQuotes } from '@/lib/quranQuotes';
+import { getOrCreateFingerprint } from '@/lib/deviceFingerprint';
+
+// ════════════════════════════════════════════════════════════
+// 🤲 صفحة طلبات الدعاء - عرض جميع الطلبات + طلباتي
+// ════════════════════════════════════════════════════════════
+// الميزات:
+// - ✅ Tab جديد: "طلباتي" (عرض طلباتك + كم شخص دعا)
+// - عرض جميع الطلبات (50-100 طلب)
+// - Pagination (10 طلبات بالصفحة)
+// - فلترة حسب النوع (all, personal, friend, deceased, sick)
+// - بحث بالاسم
+// - ترتيب (الأحدث، الأكثر دعاءً)
+// - إحصائيات
+// ════════════════════════════════════════════════════════════
+
+export default function PrayerRequestsPage({ user, currentPage, onNavigate }) {
+  // ═══════════════════════════════════════════════════════════
+  // 🔧 الحالة
+  // ═══════════════════════════════════════════════════════════
+  const [allRequests, setAllRequests] = useState([]);
+  const [myRequests, setMyRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // ✅ جديد: Tab selector
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'mine', 'others'
+  
+  // الفلترة والبحث
+  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest'); // newest, most_prayed
+  
+  // Pagination
+  const [currentPageNum, setCurrentPageNum] = useState(1);
+  const itemsPerPage = 10;
+
+  // ═══════════════════════════════════════════════════════════
+  // 🔐 دالة مساعدة للحصول على user_id
+  // ═══════════════════════════════════════════════════════════
+  const getUserId = () => {
+    // من props
+    if (user?.id) return user.id;
+    
+    // من localStorage
+    try {
+      const userData = localStorage.getItem('user_data');
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        return parsed.id;
+      }
+    } catch (e) {
+      console.error('Error getting user_id:', e);
+    }
+    
+    return null;
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 🔐 دالة البصمة
+  // ═══════════════════════════════════════════════════════════
+  const generateFingerprint = () => {
+    return getOrCreateFingerprint();
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 📥 جلب البيانات
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = async () => {
+    try {
+      setLoading(true);
+      
+      // جلب جميع الطلبات
+      const allResponse = await fetch(`/api/prayer-request?limit=100&fingerprint=${generateFingerprint()}`);
+      if (allResponse.ok) {
+        const allData = await allResponse.json();
+        setAllRequests(allData.requests || []);
+      }
+
+      // ✅ جلب طلباتي (إذا كان المستخدم مسجل)
+      const userId = getUserId();
+      if (userId) {
+        const myResponse = await fetch('/api/users/my-prayer-requests', {
+          headers: {
+            'x-user-id': userId
+          }
+        });
+        
+        if (myResponse.ok) {
+          const myData = await myResponse.json();
+          setMyRequests(myData.myRequests || []);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error loading requests:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 🔄 تحديد الطلبات المعروضة حسب Tab
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    let baseRequests = [];
+    
+    if (activeTab === 'mine') {
+      baseRequests = myRequests;
+    } else if (activeTab === 'others') {
+      // طلبات الآخرين = كل الطلبات - طلباتي
+      const myRequestIds = new Set(myRequests.map(r => r.id));
+      baseRequests = allRequests.filter(r => !myRequestIds.has(r.id));
+    } else {
+      // all
+      baseRequests = allRequests;
+    }
+
+    let result = [...baseRequests];
+
+    // الفلترة حسب النوع
+    if (selectedFilter !== 'all') {
+      result = result.filter(req => req.type === selectedFilter);
+    }
+
+    // البحث بالاسم
+    if (searchQuery.trim()) {
+      result = result.filter(req => 
+        req.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        req.purpose?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // الترتيب
+    if (sortBy === 'newest') {
+      result.sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt));
+    } else if (sortBy === 'most_prayed') {
+      result.sort((a, b) => (b.prayer_count || b.prayerCount || 0) - (a.prayer_count || a.prayerCount || 0));
+    }
+
+    setFilteredRequests(result);
+    setCurrentPageNum(1);
+  }, [activeTab, selectedFilter, searchQuery, sortBy, allRequests, myRequests]);
+
+  // ═══════════════════════════════════════════════════════════
+  // 📄 Pagination
+  // ═══════════════════════════════════════════════════════════
+  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+  const startIndex = (currentPageNum - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentRequests = filteredRequests.slice(startIndex, endIndex);
+
+  // ═══════════════════════════════════════════════════════════
+  // 🤲 الدعاء لطلب
+  // ═══════════════════════════════════════════════════════════
+  const handlePray = async (requestId) => {
+    try {
+      const response = await fetch('/api/prayer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          action: 'record_prayer',
+          requestId 
+        })
+      });
+
+      if (response.ok) {
+        // إزالة من القائمة
+        setAllRequests(prev => prev.filter(r => r.id !== requestId));
+        setFilteredRequests(prev => prev.filter(r => r.id !== requestId));
+      }
+    } catch (error) {
+      console.error('Error praying:', error);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎨 الفلاتر
+  // ═══════════════════════════════════════════════════════════
+  const filters = [
+    { id: 'all', label: 'الكل', icon: '🤲' },
+    { id: 'personal', label: 'شخصي', icon: '🙏' },
+    { id: 'friend', label: 'صديق', icon: '💙' },
+    { id: 'deceased', label: 'متوفى', icon: '🕊️' },
+    { id: 'sick', label: 'مريض', icon: '💊' }
+  ];
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎨 واجهة المستخدم
+  // ═══════════════════════════════════════════════════════════
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        
+        {/* الهيدر */}
+        <div className="mb-6">
+          <button
+            onClick={() => onNavigate('home')}
+            className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 mb-4 text-lg font-semibold"
+          >
+            <ArrowRight className="w-5 h-5" />
+            العودة للرئيسية
+          </button>
+
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl p-6 shadow-lg">
+            <h1 className="text-4xl font-bold mb-2">
+              🤲 طلبات الدعاء
+            </h1>
+            <p className="text-xl text-emerald-50 mb-4">
+              {quranQuotes.response.text}
+            </p>
+            <p className="text-sm text-emerald-100">
+              {quranQuotes.response.source}
+            </p>
+          </div>
+        </div>
+
+        {/* ✅ جديد: Tabs */}
+        <div className="bg-white rounded-xl p-2 shadow-md mb-6 flex gap-2">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`
+              flex-1 py-3 px-4 rounded-lg font-bold text-lg transition-all
+              ${activeTab === 'all'
+                ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
+                : 'bg-stone-50 text-stone-700 hover:bg-stone-100'
+              }
+            `}
+          >
+            🤲 الكل
+          </button>
+          
+          {getUserId() && (
+            <>
+              <button
+                onClick={() => setActiveTab('mine')}
+                className={`
+                  flex-1 py-3 px-4 rounded-lg font-bold text-lg transition-all
+                  ${activeTab === 'mine'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                    : 'bg-stone-50 text-stone-700 hover:bg-stone-100'
+                  }
+                `}
+              >
+                📋 طلباتي
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('others')}
+                className={`
+                  flex-1 py-3 px-4 rounded-lg font-bold text-lg transition-all
+                  ${activeTab === 'others'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg'
+                    : 'bg-stone-50 text-stone-700 hover:bg-stone-100'
+                  }
+                `}
+              >
+                👥 طلبات الآخرين
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* الإحصائيات */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-xl p-4 text-center shadow-md border-2 border-emerald-100">
+            <div className="text-3xl font-bold text-emerald-600">
+              {activeTab === 'mine' ? myRequests.length : 
+               activeTab === 'others' ? allRequests.length - myRequests.length : 
+               allRequests.length}
+            </div>
+            <div className="text-sm text-stone-600 mt-1">
+              {activeTab === 'mine' ? 'طلباتي' : 
+               activeTab === 'others' ? 'طلبات الآخرين' : 
+               'إجمالي الطلبات'}
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl p-4 text-center shadow-md border-2 border-blue-100">
+            <div className="text-3xl font-bold text-blue-600">
+              {filteredRequests.length}
+            </div>
+            <div className="text-sm text-stone-600 mt-1">
+              بعد الفلترة
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl p-4 text-center shadow-md border-2 border-amber-100">
+            <div className="text-3xl font-bold text-amber-600">
+              {totalPages}
+            </div>
+            <div className="text-sm text-stone-600 mt-1">
+              عدد الصفحات
+            </div>
+          </div>
+        </div>
+
+        {/* الفلاتر والبحث */}
+        <div className="bg-white rounded-xl p-4 shadow-md mb-6">
+          {/* الفلاتر */}
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+            {filters.map(filter => (
+              <button
+                key={filter.id}
+                onClick={() => setSelectedFilter(filter.id)}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap font-semibold transition-all
+                  ${selectedFilter === filter.id 
+                    ? 'bg-emerald-600 text-white shadow-lg' 
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                  }
+                `}
+              >
+                <span>{filter.icon}</span>
+                <span>{filter.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* البحث والترتيب */}
+          <div className="flex gap-3">
+            {/* البحث */}
+            <div className="flex-1 relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث بالاسم أو الغرض..."
+                className="w-full pr-10 pl-4 py-3 border-2 border-stone-200 rounded-lg focus:border-emerald-500 focus:outline-none text-lg"
+              />
+            </div>
+
+            {/* الترتيب */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-3 border-2 border-stone-200 rounded-lg focus:border-emerald-500 focus:outline-none text-lg font-semibold bg-white"
+            >
+              <option value="newest">الأحدث</option>
+              <option value="most_prayed">الأكثر دعاءً</option>
+            </select>
+          </div>
+        </div>
+
+        {/* ✅ رسالة خاصة لـ "طلباتي" */}
+        {activeTab === 'mine' && myRequests.length > 0 && (
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">💡</div>
+              <div className="flex-1">
+                <p className="text-lg font-bold text-blue-800 mb-1">
+                  هذه طلبات الدعاء الخاصة بك
+                </p>
+                <p className="text-sm text-blue-700">
+                  يمكنك معرفة كم شخص دعا لكل طلب من طلباتك 📊
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* قائمة الطلبات */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="text-5xl mb-4">⏳</div>
+            <p className="text-xl text-stone-600">جاري التحميل...</p>
+          </div>
+        ) : currentRequests.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl shadow-md">
+            <div className="text-6xl mb-4">🤲</div>
+            <p className="text-2xl font-bold text-stone-800 mb-2">
+              {activeTab === 'mine' ? 'ليس لديك طلبات بعد' : 'لا توجد طلبات'}
+            </p>
+            <p className="text-lg text-stone-600">
+              {activeTab === 'mine' 
+                ? 'يمكنك إنشاء طلب دعاء جديد من الصفحة الرئيسية' 
+                : searchQuery || selectedFilter !== 'all' 
+                  ? 'جرب تغيير الفلتر أو البحث' 
+                  : 'لا توجد طلبات دعاء حالياً'}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* البطاقات */}
+            <div className="space-y-4 mb-6">
+              {currentRequests.map(request => {
+                const isMyRequest = activeTab === 'mine';
+                
+                return (
+                  <div key={request.id} className="relative">
+                    {/* ✅ إحصائيات طلباتي */}
+                    {isMyRequest && (
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-4 mb-2">
+                        <div className="grid grid-cols-4 gap-3 text-center">
+                          <div>
+                            <div className="text-2xl font-bold text-blue-700">
+                              {request.prayerCount || 0}
+                            </div>
+                            <div className="text-xs text-blue-600 font-semibold">
+                              إجمالي الدعوات
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-emerald-700">
+                              {request.prayersToday || 0}
+                            </div>
+                            <div className="text-xs text-emerald-600 font-semibold">
+                              دعوات اليوم
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-amber-700">
+                              {request.prayersWeek || 0}
+                            </div>
+                            <div className="text-xs text-amber-600 font-semibold">
+                              دعوات الأسبوع
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-purple-700">
+                              {request.prayersMonth || 0}
+                            </div>
+                            <div className="text-xs text-purple-600 font-semibold">
+                              دعوات الشهر
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* البطاقة */}
+                    <PrayerCard
+                      request={{
+                        ...request,
+                        displayName: request.name,
+                        timestamp: request.created_at || request.createdAt,
+                        prayerCount: request.prayer_count || request.prayerCount,
+                        motherName: request.parent_name || request.parentName,
+                        purpose: request.purpose,
+                        quranicVerse: request.quranic_verse || request.quranicVerse
+                      }}
+                      onPray={isMyRequest ? null : handlePray}
+                      showPrayButton={!isMyRequest}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2">
+                <button
+                  onClick={() => setCurrentPageNum(prev => Math.max(1, prev - 1))}
+                  disabled={currentPageNum === 1}
+                  className={`
+                    px-4 py-2 rounded-lg font-bold transition-all
+                    ${currentPageNum === 1 
+                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed' 
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }
+                  `}
+                >
+                  السابق
+                </button>
+
+                <div className="flex gap-2">
+                  {[...Array(totalPages)].map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentPageNum(index + 1)}
+                      className={`
+                        w-10 h-10 rounded-lg font-bold transition-all
+                        ${currentPageNum === index + 1
+                          ? 'bg-emerald-600 text-white shadow-lg'
+                          : 'bg-white text-stone-700 hover:bg-stone-100 border-2 border-stone-200'
+                        }
+                      `}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPageNum(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPageNum === totalPages}
+                  className={`
+                    px-4 py-2 rounded-lg font-bold transition-all
+                    ${currentPageNum === totalPages 
+                      ? 'bg-stone-200 text-stone-400 cursor-not-allowed' 
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }
+                  `}
+                >
+                  التالي
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* نصيحة */}
+        <div className="mt-8 bg-amber-50 border-2 border-amber-200 rounded-xl p-6 text-center">
+          <div className="text-4xl mb-3">💡</div>
+          <p className="text-lg text-amber-800">
+            كلما دعوت للآخرين، دعت لك الملائكة بمثل ما تدعو
+          </p>
+          <p className="text-sm text-amber-700 mt-2">
+            "اللهم آمين، ولك بمثل"
+          </p>
+        </div>
+
+      </div>
+    </div>
+  );
+}

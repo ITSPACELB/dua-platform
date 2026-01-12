@@ -29,7 +29,7 @@ export default function CollectivePrayerManager() {
 
   const loadPrayers = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         alert('يجب تسجيل الدخول أولاً');
         return;
@@ -71,7 +71,7 @@ export default function CollectivePrayerManager() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         alert('يجب تسجيل الدخول أولاً');
         return;
@@ -172,7 +172,7 @@ export default function CollectivePrayerManager() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         alert('يجب تسجيل الدخول أولاً');
         return;
@@ -202,7 +202,7 @@ export default function CollectivePrayerManager() {
   // ============================================================================
   const handleToggleActive = async (id, currentStatus) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         alert('يجب تسجيل الدخول أولاً');
         return;

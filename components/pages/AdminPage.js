@@ -6,6 +6,7 @@ import CollectivePrayerManager from './CollectivePrayerManager';
 import AdminAchievementsPanel from './AdminAchievementsPanel';
 import AdminSettingsPanel from './AdminSettingsPanel';
 import AdminLibraryPanel from './AdminLibraryPanel';
+import AdminStatsSection from './AdminStatsSection';
 
 export default function AdminPage({ user, onNavigate, onLogout }) {
   // ============================================================================
@@ -701,7 +702,7 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
   // ============================================================================
   useEffect(() => {
     if (user) {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) return;
 
       fetch('/api/admin/stats', {
@@ -726,7 +727,7 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
   // ============================================================================
   useEffect(() => {
     if (activeTab === 'users' && user) {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) return;
 
       fetch(`/api/admin/users?page=${usersPage}&search=${usersSearch}&filter=${usersFilter}`, {
@@ -747,7 +748,7 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
   // ============================================================================
   useEffect(() => {
     if (activeTab === 'requests' && user) {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) return;
 
       fetch(`/api/admin/requests?page=${requestsPage}&status=${requestsStatus}&type=${requestsType}`, {
@@ -769,7 +770,7 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
   // ============================================================================
   useEffect(() => {
     if (activeTab === 'settings' && user) {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) return;
 
       fetch('/api/admin/settings', {
@@ -796,17 +797,15 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
   const handleDeleteUser = async (userId) => {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await fetch(`/api/admin/users?id=${userId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId })
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       const data = await res.json();
@@ -824,10 +823,35 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
   };
 
   // ============================================================================
+  // 🗑️ حذف طلب دعاء
+  // ============================================================================
+  const handleDeleteRequest = async (requestId) => {
+    if (!confirm('هل أنت متأكد من حذف هذا الطلب؟')) return;
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/admin/requests?id=${requestId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'تم حذف الطلب بنجاح');
+        setRequests(requests.filter(r => r.id !== requestId));
+      } else {
+        alert(data.error || 'حدث خطأ');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('حدث خطأ');
+    }
+  };
+
+  // ============================================================================
   // 💾 حفظ الإعدادات
   // ============================================================================
   const handleSaveSetting = async (key, value) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
@@ -993,37 +1017,11 @@ export default function AdminPage({ user, onNavigate, onLogout }) {
         {/* المحتوى */}
         <div className="bg-white rounded-lg border-2 border-stone-200 p-6 shadow-lg">
           {/* تبويب الإحصائيات */}
-          {activeTab === 'stats' && stats && (
-            <div>
-              <h2 className="text-3xl font-bold text-stone-800 mb-6">📊 إحصائيات المنصة</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-lg p-6">
-                  <div className="text-4xl mb-3">👥</div>
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">إجمالي المستخدمين</h3>
-                  <p className="text-3xl font-bold text-blue-700">{stats.totalUsers || 0}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-lg p-6">
-                  <div className="text-4xl mb-3">🤲</div>
-                  <h3 className="text-lg font-semibold text-emerald-900 mb-2">دعوات اليوم</h3>
-                  <p className="text-3xl font-bold text-emerald-700">{stats.prayersToday || 0}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-200 rounded-lg p-6">
-                  <div className="text-4xl mb-3">✓</div>
-                  <h3 className="text-lg font-semibold text-amber-900 mb-2">موثقون</h3>
-                  <p className="text-3xl font-bold text-amber-700">{stats.verifiedUsers?.total || 0}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-6">
-                  <div className="text-4xl mb-3">⚡</div>
-                  <h3 className="text-lg font-semibold text-purple-900 mb-2">نشطون</h3>
-                  <p className="text-3xl font-bold text-purple-700">{stats.activeUsers || 0}</p>
-                </div>
-              </div>
-            </div>
+          {/* تبويب الإحصائيات */}
+          {activeTab === 'stats' && (
+            <AdminStatsSection />
           )}
+
 
           {/* تبويب المستخدمين */}
           {activeTab === 'users' && (
